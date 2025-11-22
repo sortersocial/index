@@ -1,0 +1,41 @@
+I am working on a folksonomy application
+Synonymy (car vs auto vs vehicle)
+Polysemy (bank -> river or finance)
+No hierarchy (dog picture tagged as #pet #golden-retriever #dog), searches miss
+Personal tags don’t work (#toread #my_project)
+spam
+
+I was thinking of decoupling the hashtag slug from the entity (see slugs table in schema). Making it a competitive dynamic for which collection wins the tag. So if someone disagrees with a membership, they can fork and propose a new one, owners of tags curate them. What do you think of that?
+
+
+It does mean that #Jedi could change out from under you, i.e. urls aren't stable.... But you could link to the entity UUID if you wanted.. and #Jedi wouldn't be stable for the specific owners collection, but it would always point to Jedi...DNS: google.com can point to different IPsGit: 'main' branch can move, but commit SHAs are foreverWikipedia: Current version vs permalink to revision
+
+#jedi would show multiple uuids as candidates, just emphasize the winner in the ui
+
+For a topic like #Jedi, imagine the battle between those who only accept the original trilogy, those who include the Disney canon, and those who want to include the "Legends" expanded universe. Your system turns a content dispute into a direct conflict over the platform's primary navigation. How are these disputes resolved?
+
+Voting. Voting on the shape of folksonomy is one of the main ways people enjoy interacting with the site. There is a table that connects entities to slugs. It is voted on, somehow
+
+I was thinking the slugs only update every night, or morning. The changes in the folksonomy ownership graph (which user owns which tag) are collected as a daily morning digest.
+
+the rank centrality is for ranking the items in side the folkosnomy tags. curators fight for slugs by making good collections, 95% of users (aspirationally, we don't have any users yet) just view rankings/vote on the curated sets
+CREATE TABLE slug_endorsements (
+  slug text NOT NULL,
+  entity_ns text NOT NULL,
+  entity_pk text NOT NULL,
+  user_id uuid REFERENCES users(id) NOT NULL,
+  endorsed_at timestamp DEFAULT now(),
+  PRIMARY KEY (slug, user_id)
+  -- Each user can endorse ONE collection per slug
+);
+
+-- Daily resolution
+SELECT slug, entity_ns, entity_pk, COUNT(*) as endorsements
+FROM slug_endorsements
+GROUP BY slug, entity_ns, entity_pk
+ORDER BY slug, endorsements DESC;
+
+I was thinking of using simple majority voting for the folksonomy membership, but ranking the items _within_ the folksonomy tags Using pairwise comparisons.
+
+
+
