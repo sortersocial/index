@@ -1,0 +1,9 @@
+if im making a python project in 2025, whats best practice. i should probably have a linter? 
+
+uv? venv? black? types?
+
+deploy to fly.io? postgres connection? dbmate migrations.
+
+how to build sql queries in python. sqlalchemy? just strings? that might be easier for complex queries
+
+I want to receive/respond to email, and have some html views.  i want to deploy to fly.io
