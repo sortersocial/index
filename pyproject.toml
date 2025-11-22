@@ -1,0 +1,14 @@
+[tool.black]
+line-length = 88
+target-version = ['py311']
+
+[tool.ruff]
+line-length = 88
+select = ["E", "F", "W", "I"] # Error, Flake8, Warnings, Isort
+
+[tool.mypy]
+ignore_missing_imports = true
+plugins = "pydantic.mypy"
+
+[tool.uv]
+requires-python = ">=3.11"
