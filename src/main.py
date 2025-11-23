@@ -93,8 +93,11 @@ async def postmark_webhook(email: PostmarkInboundEmail):
     # Ensure subject has Re: prefix
     subject = email.Subject if email.Subject.startswith("Re:") else f"Re: {email.Subject}"
     
+    # Reply from the address the email was sent to (for proper threading)
+    reply_from = email.To
+    
     postmark.emails.send(
-        From="reply@mail.sorter.social",
+        From=reply_from,
         To=email.From,
         Subject=subject,
         TextBody=build_reply_body(email.TextBody),
@@ -105,7 +108,7 @@ async def postmark_webhook(email: PostmarkInboundEmail):
         TrackOpens=False,
         TrackLinks="None"
     )
-    logger.info(f"Sent reply to {email.From}")
+    logger.info(f"Sent reply from {reply_from} to {email.From}")
     logger.info(f"Threading headers - In-Reply-To: {message_id}, References: {references}")
 
     return JSONResponse(
