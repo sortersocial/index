@@ -4,8 +4,8 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from typing import Optional, List
 import logging
-
-from src.email_utils import email_sender
+import os
+from postmarker.core import PostmarkClient
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -13,6 +13,12 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 templates = Jinja2Templates(directory="src/templates")
+
+# Initialize Postmark client
+postmark_token = os.getenv("POSTMARK_SERVER_TOKEN")
+postmark = PostmarkClient(server_token=postmark_token) if postmark_token else None
+if not postmark:
+    logger.warning("POSTMARK_SERVER_TOKEN not set - email sending disabled")
 
 # Postmark Inbound Email Schema
 class PostmarkAttachment(BaseModel):
@@ -60,15 +66,38 @@ async def postmark_webhook(email: PostmarkInboundEmail):
 
     # TODO: Process email and store in database
 
-    #Example: Send an auto-reply (uncomment to enable)
-    email_sender.send_reply(
-        to=email.From,
-        subject=email.Subject,
-        text_body=f"Thanks for your email! We received:\n\n{email.TextBody}",
-        html_body=f"<p>Thanks for your email!</p><blockquote>{email.HtmlBody}</blockquote>",
-        in_reply_to=email.MessageID,
-        from_address="reply@mail.sorter.social"
+    # Send auto-reply with proper threading
+    if not postmark:
+        return JSONResponse(
+            status_code=200,
+            content={"status": "success", "message": "Email received"}
+        )
+    
+    # Build References header from existing References + MessageID
+    references = None
+    for header in email.Headers:
+        if header.get("Name") == "References":
+            references = f"{header.get('Value')} {email.MessageID}"
+            break
+    if not references:
+        references = email.MessageID
+    
+    # Ensure subject has Re: prefix
+    subject = email.Subject if email.Subject.startswith("Re:") else f"Re: {email.Subject}"
+    
+    postmark.emails.send(
+        From="reply@mail.sorter.social",
+        To=email.From,
+        Subject=subject,
+        TextBody=f"Thanks for your email! We received:\n\n{email.TextBody}",
+        Headers={
+            "In-Reply-To": email.MessageID,
+            "References": references
+        },
+        TrackOpens=False,
+        TrackLinks="None"
     )
+    logger.info(f"Sent reply to {email.From}")
 
     return JSONResponse(
         status_code=200,

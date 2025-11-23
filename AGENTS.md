@@ -299,7 +299,7 @@ The application can send emails and reply to received emails:
 3. **API**: Uses `postmarker` Python client
 4. **Configuration**: Requires `POSTMARK_SERVER_TOKEN` environment variable
 
-See `src/email_utils.py` for email sending utilities and `POSTMARK_OUTBOUND_SETUP.md` for detailed setup instructions.
+See the `postmark_webhook` function in `src/main.py` for email sending implementation.
 
 ## Database
 
