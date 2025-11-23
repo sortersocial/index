@@ -78,16 +78,25 @@ async def postmark_webhook(email: PostmarkInboundEmail):
             content={"status": "success", "message": "Email received"}
         )
     
-    # Build References header from existing References + MessageID
-    # Ensure MessageID has angle brackets for proper threading
-    message_id = email.MessageID if email.MessageID.startswith("<") else f"<{email.MessageID}>"
-    
+    # Extract the real Message-ID from headers (not Postmark's internal ID)
+    message_id = None
     references = None
+    
     for header in email.Headers:
-        if header.get("Name") == "References":
-            references = f"{header.get('Value')} {message_id}"
-            break
-    if not references:
+        header_name = header.get("Name", "")
+        if header_name == "Message-ID" or header_name == "Message-Id":
+            message_id = header.get("Value")
+        elif header_name == "References":
+            references = header.get("Value")
+    
+    # Fallback to Postmark's MessageID if Message-ID header not found
+    if not message_id:
+        message_id = email.MessageID if email.MessageID.startswith("<") else f"<{email.MessageID}>"
+    
+    # Build References header by appending current message_id
+    if references:
+        references = f"{references} {message_id}"
+    else:
         references = message_id
     
     # Ensure subject has Re: prefix
