@@ -3,15 +3,52 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from typing import Optional, List
+from contextlib import asynccontextmanager
 import logging
 import os
 from postmarker.core import PostmarkClient
+from src import storage
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
+# --- Global In-Memory State ---
+# This will be populated from the file system at startup
+GLOBAL_STATE = {
+    "email_count": 0,
+    # TODO: Add "Graph", "Entities", "Slugs" here
+}
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Lifespan context manager to handle startup and shutdown events.
+    Replays the append-only log to rebuild in-memory state.
+    """
+    logger.info("--- STARTUP: Replaying History ---")
+    
+    # Initialize storage (ensure dir exists)
+    storage.init_storage()
+    
+    # Replay history
+    count = 0
+    for email_body in storage.stream_history():
+        count += 1
+        # TODO: Feed this body into the Grammar Parser
+        # parser.process(email_body, GLOBAL_STATE)
+        pass
+    
+    GLOBAL_STATE["email_count"] = count
+    logger.info(f"--- STARTUP COMPLETE: Replayed {count} events ---")
+    
+    yield
+    
+    logger.info("--- SHUTDOWN ---")
+
+
+app = FastAPI(lifespan=lifespan)
 templates = Jinja2Templates(directory="src/templates")
 
 # Initialize Postmark client
@@ -57,7 +94,10 @@ def build_reply_body(original_text: str) -> str:
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "count": GLOBAL_STATE["email_count"]
+    })
 
 @app.post("/webhook/postmark")
 async def postmark_webhook(email: PostmarkInboundEmail):
@@ -66,40 +106,34 @@ async def postmark_webhook(email: PostmarkInboundEmail):
     Receives emails sent to anything@mail.sorter.social
     """
     logger.info(f"Received email from {email.From} to {email.To}")
-    logger.info(f"Subject: {email.Subject}")
-    logger.info(f"Body preview: {email.TextBody[:100]}...")
 
-    # TODO: Process email and store in database
+    # 1. Persist to Disk (Append-Only Log)
+    # We use the TextBody as the source of truth for the parser
+    storage.save_email(email.Subject, email.TextBody)
+    # Update local state immediately so we don't need to restart to see changes
+    GLOBAL_STATE["email_count"] += 1
 
-    # Send auto-reply with proper threading
+    # 2. Send Auto-Reply
     if not postmark:
         return JSONResponse(
             status_code=200,
-            content={"status": "success", "message": "Email received"}
+            content={"status": "success", "message": "Email received (no reply sent)"}
         )
     
-    # Extract threading headers from the incoming email
-    # Message-ID: The unique ID of the email we're replying to
-    # References: The full chain of previous message IDs in the thread
+    # Extract threading headers
     incoming_message_id = None
     incoming_references = None
     
     for header in email.Headers:
         header_name = header.get("Name", "")
-        if header_name == "Message-ID" or header_name == "Message-Id":
+        if header_name.lower() == "message-id":
             incoming_message_id = header.get("Value")
-        elif header_name == "References":
+        elif header_name.lower() == "references":
             incoming_references = header.get("Value")
 
-    # Build the References chain for our reply:
-    # All previous messages (if any) + the message we're replying to
     reply_references = f"{incoming_references} {incoming_message_id}" if incoming_references else incoming_message_id
-    
-    # Ensure subject has Re: prefix
     subject = email.Subject if email.Subject.startswith("Re:") else f"Re: {email.Subject}"
-    
-    # Reply from the address the email was sent to (for proper threading)
-    reply_from = email.To
+    reply_from = email.To  # Reply from the specific address (e.g. random-slug@sorter.social)
     
     postmark.emails.send(
         From=reply_from,
@@ -113,12 +147,11 @@ async def postmark_webhook(email: PostmarkInboundEmail):
         TrackOpens=False,
         TrackLinks="None"
     )
-    logger.info(f"Sent reply from {reply_from} to {email.From}")
-    logger.info(f"Threading headers - In-Reply-To: {incoming_message_id}, References: {reply_references}")
+    logger.info(f"Sent reply to {email.From}")
 
     return JSONResponse(
         status_code=200,
-        content={"status": "success", "message": "Email received"}
+        content={"status": "success", "message": "Email processed"}
     )
 
 @app.get("/health")
