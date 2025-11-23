@@ -9,7 +9,7 @@ An email sorting application with the following components:
 3. **Database Layer** - PostgreSQL with dbmate migrations for data persistence
 
 **Deployed at**: https://index.sorter.social (via fly.io in Ashburn, VA)
-**Email**: Receives emails at anything@sorter.social via Postmark webhooks
+**Email**: Receives emails at anything@mail.sorter.social via Postmark webhooks
 
 ## Prerequisites
 
@@ -274,9 +274,9 @@ All dependencies are specified in `pyproject.toml` and managed by `uv`.
 
 The application receives emails via Postmark webhooks:
 
-1. **Inbound Domain**: sorter.social
+1. **Inbound Domain**: mail.sorter.social
 2. **Webhook URL**: https://index.sorter.social/webhook/postmark
-3. **Email Format**: anything@sorter.social
+3. **Email Format**: anything@mail.sorter.social
 4. **Payload**: Postmark sends JSON with email content, including:
    - From/To addresses
    - Subject and message body (text/HTML)

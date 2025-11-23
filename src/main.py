@@ -50,7 +50,7 @@ async def read_root(request: Request):
 async def postmark_webhook(email: PostmarkInboundEmail):
     """
     Webhook endpoint for Postmark inbound emails.
-    Receives emails sent to anything@sorter.social
+    Receives emails sent to anything@mail.sorter.social
     """
     logger.info(f"Received email from {email.From} to {email.To}")
     logger.info(f"Subject: {email.Subject}")
