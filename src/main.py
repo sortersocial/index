@@ -5,6 +5,8 @@ from pydantic import BaseModel
 from typing import Optional, List
 import logging
 
+from src.email_utils import email_sender
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -57,7 +59,16 @@ async def postmark_webhook(email: PostmarkInboundEmail):
     logger.info(f"Body preview: {email.TextBody[:100]}...")
 
     # TODO: Process email and store in database
-    # For now, just log and return success
+
+    # Example: Send an auto-reply (uncomment to enable)
+    # email_sender.send_reply(
+    #     to=email.From,
+    #     subject=email.Subject,
+    #     text_body=f"Thanks for your email! We received:\n\n{email.TextBody}",
+    #     html_body=f"<p>Thanks for your email!</p><blockquote>{email.HtmlBody}</blockquote>",
+    #     in_reply_to=email.MessageID,
+    #     from_address="reply@mail.sorter.social"
+    # )
 
     return JSONResponse(
         status_code=200,

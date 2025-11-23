@@ -260,6 +260,9 @@ Database dependencies:
 - `asyncpg` - Async PostgreSQL driver
 - `psycopg2-binary` - Sync PostgreSQL driver
 
+Email dependencies:
+- `postmarker` - Python client for Postmark API (sending emails)
+
 All dependencies are specified in `pyproject.toml` and managed by `uv`.
 
 ## API Endpoints
@@ -272,6 +275,8 @@ All dependencies are specified in `pyproject.toml` and managed by `uv`.
 
 ## Postmark Integration
 
+### Inbound Email (Receiving)
+
 The application receives emails via Postmark webhooks:
 
 1. **Inbound Domain**: mail.sorter.social
@@ -283,7 +288,18 @@ The application receives emails via Postmark webhooks:
    - Headers and attachments
    - Message ID and timestamp
 
-See src/main.py:49 for the webhook handler and Pydantic schema.
+See src/main.py:51 for the webhook handler and Pydantic schema.
+
+### Outbound Email (Sending)
+
+The application can send emails and reply to received emails:
+
+1. **Sender Domain**: mail.sorter.social (must be verified in Postmark)
+2. **Threading Support**: Replies maintain email thread using In-Reply-To and References headers
+3. **API**: Uses `postmarker` Python client
+4. **Configuration**: Requires `POSTMARK_SERVER_TOKEN` environment variable
+
+See `src/email_utils.py` for email sending utilities and `POSTMARK_OUTBOUND_SETUP.md` for detailed setup instructions.
 
 ## Database
 
