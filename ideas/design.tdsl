@@ -1,0 +1,10 @@
+I was thinking about structuring the site. Append only log of text files. Every email/submission gets archived. And sqlite/similar is the materialized, queryable view.
+
+Strictly arbitrary in memory data structures at first.
+
+Expand to rocksdb/sqlite when needed
+
+using SQLite FTS5 for searching documents.
+
+Unlisted rule:
+in index, have regex filter for hashtags matching uuid as first 10 characters. Or check for hyphen at exact place…. Or something simple like that.

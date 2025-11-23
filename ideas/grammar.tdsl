@@ -34,3 +34,6 @@ all actions that are possible in sorted competiteve folksonomy are possible it e
 
 
 ```
+
+python lark library. 
+Because then I can paste the users query and the grammar at an llm and give helpful error messages
