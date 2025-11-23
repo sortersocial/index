@@ -79,13 +79,16 @@ async def postmark_webhook(email: PostmarkInboundEmail):
         )
     
     # Build References header from existing References + MessageID
+    # Ensure MessageID has angle brackets for proper threading
+    message_id = email.MessageID if email.MessageID.startswith("<") else f"<{email.MessageID}>"
+    
     references = None
     for header in email.Headers:
         if header.get("Name") == "References":
-            references = f"{header.get('Value')} {email.MessageID}"
+            references = f"{header.get('Value')} {message_id}"
             break
     if not references:
-        references = email.MessageID
+        references = message_id
     
     # Ensure subject has Re: prefix
     subject = email.Subject if email.Subject.startswith("Re:") else f"Re: {email.Subject}"
@@ -96,13 +99,14 @@ async def postmark_webhook(email: PostmarkInboundEmail):
         Subject=subject,
         TextBody=build_reply_body(email.TextBody),
         Headers={
-            "In-Reply-To": email.MessageID,
+            "In-Reply-To": message_id,
             "References": references
         },
         TrackOpens=False,
         TrackLinks="None"
     )
     logger.info(f"Sent reply to {email.From}")
+    logger.info(f"Threading headers - In-Reply-To: {message_id}, References: {references}")
 
     return JSONResponse(
         status_code=200,
