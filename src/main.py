@@ -50,6 +50,11 @@ class PostmarkInboundEmail(BaseModel):
     Headers: List[dict]
     Attachments: List[PostmarkAttachment] = []
 
+def build_reply_body(original_text: str) -> str:
+    """Construct the text body for an auto-reply with quoted text"""
+    quoted = "\n".join(f"> {line}" for line in original_text.splitlines())
+    return f"Thanks for your email!\n\n{quoted}"
+
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
@@ -89,7 +94,7 @@ async def postmark_webhook(email: PostmarkInboundEmail):
         From="reply@mail.sorter.social",
         To=email.From,
         Subject=subject,
-        TextBody=f"Thanks for your email! We received:\n\n{email.TextBody}",
+        TextBody=build_reply_body(email.TextBody),
         Headers={
             "In-Reply-To": email.MessageID,
             "References": references
