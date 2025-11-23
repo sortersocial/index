@@ -64,31 +64,26 @@ class EmailSender:
             # If no references provided, use in_reply_to as the reference
             headers["References"] = references if references else in_reply_to
 
-        try:
-            # Build email parameters
-            email_params = {
-                "From": from_address,
-                "To": to,
-                "Subject": subject,
-                "TextBody": text_body,
-                "TrackOpens": track_opens,
-                "TrackLinks": "None",
-            }
+        # Build email parameters
+        email_params = {
+            "From": from_address,
+            "To": to,
+            "Subject": subject,
+            "TextBody": text_body,
+            "TrackOpens": track_opens,
+            "TrackLinks": "None",
+        }
 
-            # Add optional parameters
-            if html_body:
-                email_params["HtmlBody"] = html_body
-            if headers:
-                email_params["Headers"] = headers
+        # Add optional parameters
+        if html_body:
+            email_params["HtmlBody"] = html_body
+        if headers:
+            email_params["Headers"] = headers
 
-            response = self.client.emails.send(**email_params)
+        response = self.client.emails.send(**email_params)
 
-            logger.info(f"Email sent to {to}, MessageID: {response.get('MessageID')}")
-            return response
-
-        except Exception as e:
-            logger.error(f"Failed to send email to {to}: {e}", exc_info=True)
-            return None
+        logger.info(f"Email sent to {to}, MessageID: {response.get('MessageID')}")
+        return response
 
     def send_email(
         self,
@@ -117,29 +112,24 @@ class EmailSender:
             logger.error("Cannot send email - Postmark client not initialized")
             return None
 
-        try:
-            # Build email parameters
-            email_params = {
-                "From": from_address,
-                "To": to,
-                "Subject": subject,
-                "TextBody": text_body,
-                "TrackOpens": track_opens,
-                "TrackLinks": "None",
-            }
+        # Build email parameters
+        email_params = {
+            "From": from_address,
+            "To": to,
+            "Subject": subject,
+            "TextBody": text_body,
+            "TrackOpens": track_opens,
+            "TrackLinks": "None",
+        }
 
-            # Add optional parameters
-            if html_body:
-                email_params["HtmlBody"] = html_body
+        # Add optional parameters
+        if html_body:
+            email_params["HtmlBody"] = html_body
 
-            response = self.client.emails.send(**email_params)
+        response = self.client.emails.send(**email_params)
 
-            logger.info(f"Email sent to {to}, MessageID: {response.get('MessageID')}")
-            return response
-
-        except Exception as e:
-            logger.error(f"Failed to send email to {to}: {e}", exc_info=True)
-            return None
+        logger.info(f"Email sent to {to}, MessageID: {response.get('MessageID')}")
+        return response
 
 
 # Global email sender instance
