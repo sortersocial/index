@@ -3,11 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Email App</title>
+    <title>Sorter - Email Index</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 0 20px;
+            line-height: 1.6;
+        }
+        h1 { margin-bottom: 0.5em; }
+        .stats { color: #666; margin-bottom: 2em; }
+        .email-list { list-style: none; padding: 0; }
+        .email-list li {
+            padding: 10px;
+            margin: 5px 0;
+            background: #f5f5f5;
+            border-radius: 4px;
+        }
+        .email-list a {
+            color: #0066cc;
+            text-decoration: none;
+            font-family: monospace;
+        }
+        .email-list a:hover { text-decoration: underline; }
+    </style>
 </head>
 <body>
     <h1>Welcome to the sorter index!</h1>
-    <p>email anything to <a href="mailto:about@email.sorter.social">about@sorter.social</a> to get started.</p>
-    <p>Emails processed: {{ count }}</p>
+    <p>Email anything to <a href="mailto:about@mail.sorter.social">about@mail.sorter.social</a> to get started.</p>
+    <p class="stats">Emails processed: {{ count }}</p>
+
+    {% if emails %}
+    <h2>Email Archive</h2>
+    <ul class="email-list">
+        {% for filename, subject in emails %}
+        <li>
+            <a href="/emails/{{ filename }}" target="_blank">{{ subject }}</a>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
 </body>
 </html>

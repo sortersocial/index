@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from typing import Optional, List
@@ -94,10 +94,21 @@ def build_reply_body(original_text: str) -> str:
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
+    emails = storage.list_emails()
     return templates.TemplateResponse("index.html", {
         "request": request,
-        "count": GLOBAL_STATE["email_count"]
+        "count": GLOBAL_STATE["email_count"],
+        "emails": emails
     })
+
+
+@app.get("/emails/{filename}", response_class=PlainTextResponse)
+async def get_email(filename: str):
+    """Serve a specific email file as plain text"""
+    content = storage.get_email(filename)
+    if content is None:
+        return PlainTextResponse("Email not found", status_code=404)
+    return PlainTextResponse(content)
 
 @app.post("/webhook/postmark")
 async def postmark_webhook(email: PostmarkInboundEmail):
