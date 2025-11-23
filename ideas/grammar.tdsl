@@ -9,9 +9,9 @@ emails are parsed using grammar.
 ``emaildsl
 
 #hashtags
-+title of this item {
++title-of-this-item {
     
-body of the item
+body-of-the-item
 inside braces because they are not used otherwise in english grammar, unlike parenthesis and periods.
 }
 
@@ -26,7 +26,7 @@ text that doesn't start with a special character is just text..
 all actions that are possible in sorted competiteve folksonomy are possible it emaildsl.
   - pairwise votes 
   
-  !vote +title of this item, +item2, 10:1
+  !vote +title-of-this-item 10:1 +item2
   or
   +title 10>1 +item2
   +item1 50=50 +item2
