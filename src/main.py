@@ -78,26 +78,22 @@ async def postmark_webhook(email: PostmarkInboundEmail):
             content={"status": "success", "message": "Email received"}
         )
     
-    # Extract the real Message-ID from headers (not Postmark's internal ID)
-    message_id = None
-    references = None
+    # Extract threading headers from the incoming email
+    # Message-ID: The unique ID of the email we're replying to
+    # References: The full chain of previous message IDs in the thread
+    incoming_message_id = None
+    incoming_references = None
     
     for header in email.Headers:
         header_name = header.get("Name", "")
         if header_name == "Message-ID" or header_name == "Message-Id":
-            message_id = header.get("Value")
+            incoming_message_id = header.get("Value")
         elif header_name == "References":
-            references = header.get("Value")
-    
-    # Fallback to Postmark's MessageID if Message-ID header not found
-    if not message_id:
-        message_id = email.MessageID if email.MessageID.startswith("<") else f"<{email.MessageID}>"
-    
-    # Build References header by appending current message_id
-    if references:
-        references = f"{references} {message_id}"
-    else:
-        references = message_id
+            incoming_references = header.get("Value")
+
+    # Build the References chain for our reply:
+    # All previous messages (if any) + the message we're replying to
+    reply_references = f"{incoming_references} {incoming_message_id}" if incoming_references else incoming_message_id
     
     # Ensure subject has Re: prefix
     subject = email.Subject if email.Subject.startswith("Re:") else f"Re: {email.Subject}"
@@ -111,14 +107,14 @@ async def postmark_webhook(email: PostmarkInboundEmail):
         Subject=subject,
         TextBody=build_reply_body(email.TextBody),
         Headers={
-            "In-Reply-To": message_id,
-            "References": references
+            "In-Reply-To": incoming_message_id,
+            "References": reply_references
         },
         TrackOpens=False,
         TrackLinks="None"
     )
     logger.info(f"Sent reply from {reply_from} to {email.From}")
-    logger.info(f"Threading headers - In-Reply-To: {message_id}, References: {references}")
+    logger.info(f"Threading headers - In-Reply-To: {incoming_message_id}, References: {reply_references}")
 
     return JSONResponse(
         status_code=200,
