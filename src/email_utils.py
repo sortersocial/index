@@ -57,33 +57,37 @@ class EmailSender:
         if in_reply_to and not subject.startswith("Re:"):
             subject = f"Re: {subject}"
 
-        # Build headers for threading
-        headers = []
+        # Build headers for threading - postmarker expects a dict, not a list
+        headers = {}
         if in_reply_to:
-            headers.append({"Name": "In-Reply-To", "Value": in_reply_to})
-        if references:
-            headers.append({"Name": "References", "Value": references})
-        elif in_reply_to:
+            headers["In-Reply-To"] = in_reply_to
             # If no references provided, use in_reply_to as the reference
-            headers.append({"Name": "References", "Value": in_reply_to})
+            headers["References"] = references if references else in_reply_to
 
         try:
-            response = self.client.emails.send(
-                From=from_address,
-                To=to,
-                Subject=subject,
-                TextBody=text_body,
-                HtmlBody=html_body,
-                Headers=headers if headers else None,
-                TrackOpens=track_opens,
-                TrackLinks="None",
-            )
+            # Build email parameters
+            email_params = {
+                "From": from_address,
+                "To": to,
+                "Subject": subject,
+                "TextBody": text_body,
+                "TrackOpens": track_opens,
+                "TrackLinks": "None",
+            }
+
+            # Add optional parameters
+            if html_body:
+                email_params["HtmlBody"] = html_body
+            if headers:
+                email_params["Headers"] = headers
+
+            response = self.client.emails.send(**email_params)
 
             logger.info(f"Email sent to {to}, MessageID: {response.get('MessageID')}")
             return response
 
         except Exception as e:
-            logger.error(f"Failed to send email to {to}: {e}")
+            logger.error(f"Failed to send email to {to}: {e}", exc_info=True)
             return None
 
     def send_email(
@@ -114,21 +118,27 @@ class EmailSender:
             return None
 
         try:
-            response = self.client.emails.send(
-                From=from_address,
-                To=to,
-                Subject=subject,
-                TextBody=text_body,
-                HtmlBody=html_body,
-                TrackOpens=track_opens,
-                TrackLinks="None",
-            )
+            # Build email parameters
+            email_params = {
+                "From": from_address,
+                "To": to,
+                "Subject": subject,
+                "TextBody": text_body,
+                "TrackOpens": track_opens,
+                "TrackLinks": "None",
+            }
+
+            # Add optional parameters
+            if html_body:
+                email_params["HtmlBody"] = html_body
+
+            response = self.client.emails.send(**email_params)
 
             logger.info(f"Email sent to {to}, MessageID: {response.get('MessageID')}")
             return response
 
         except Exception as e:
-            logger.error(f"Failed to send email to {to}: {e}")
+            logger.error(f"Failed to send email to {to}: {e}", exc_info=True)
             return None
 
 

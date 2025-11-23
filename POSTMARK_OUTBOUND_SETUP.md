@@ -106,16 +106,10 @@ postmark.emails.send(
     TextBody="Your reply text here",
     HtmlBody="<p>Your reply HTML here</p>",
     # Threading headers - CRITICAL for proper threading
-    Headers=[
-        {
-            "Name": "In-Reply-To",
-            "Value": original_message_id  # MessageID from inbound webhook
-        },
-        {
-            "Name": "References",
-            "Value": original_message_id  # Can include multiple message IDs
-        }
-    ],
+    Headers={
+        "In-Reply-To": original_message_id,  # MessageID from inbound webhook
+        "References": original_message_id    # Can include multiple message IDs
+    },
     TrackOpens=False,
     TrackLinks="None"
 )
@@ -155,10 +149,10 @@ async def postmark_webhook(email: PostmarkInboundEmail):
             TextBody=f"Thanks for your email! We received:\n\n{email.TextBody}",
             HtmlBody=f"<p>Thanks for your email! We received:</p><blockquote>{email.HtmlBody}</blockquote>",
             # Threading headers - these make it appear as a reply
-            Headers=[
-                {"Name": "In-Reply-To", "Value": email.MessageID},
-                {"Name": "References", "Value": email.MessageID}
-            ],
+            Headers={
+                "In-Reply-To": email.MessageID,
+                "References": email.MessageID
+            },
             TrackOpens=False
         )
 
@@ -183,10 +177,10 @@ To maintain email threads, you need these headers:
 
 Example for a longer thread:
 ```python
-Headers=[
-    {"Name": "In-Reply-To", "Value": "<most-recent-message-id>"},
-    {"Name": "References", "Value": "<original-id> <second-id> <most-recent-id>"}
-]
+Headers={
+    "In-Reply-To": "<most-recent-message-id>",
+    "References": "<original-id> <second-id> <most-recent-id>"
+}
 ```
 
 ## Best Practices
