@@ -37,5 +37,5 @@ ORDER BY slug, endorsements DESC;
 
 I was thinking of using simple majority voting for the folksonomy membership, but ranking the items _within_ the folksonomy tags Using pairwise comparisons.
 
-
+maybe use liquid democracy of some sort? delegate votes? create tree of delegations? winning root node controls that slug?
 
