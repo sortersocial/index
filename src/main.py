@@ -60,15 +60,15 @@ async def postmark_webhook(email: PostmarkInboundEmail):
 
     # TODO: Process email and store in database
 
-    # Example: Send an auto-reply (uncomment to enable)
-    # email_sender.send_reply(
-    #     to=email.From,
-    #     subject=email.Subject,
-    #     text_body=f"Thanks for your email! We received:\n\n{email.TextBody}",
-    #     html_body=f"<p>Thanks for your email!</p><blockquote>{email.HtmlBody}</blockquote>",
-    #     in_reply_to=email.MessageID,
-    #     from_address="reply@mail.sorter.social"
-    # )
+    #Example: Send an auto-reply (uncomment to enable)
+    email_sender.send_reply(
+        to=email.From,
+        subject=email.Subject,
+        text_body=f"Thanks for your email! We received:\n\n{email.TextBody}",
+        html_body=f"<p>Thanks for your email!</p><blockquote>{email.HtmlBody}</blockquote>",
+        in_reply_to=email.MessageID,
+        from_address="reply@mail.sorter.social"
+    )
 
     return JSONResponse(
         status_code=200,
