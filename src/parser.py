@@ -228,7 +228,8 @@ class EmailDSLParser:
         """Parse EmailDSL with line-based filtering.
 
         Only parses lines that start with special characters,
-        ignoring noise like email signatures.
+        ignoring noise like email signatures. Keeps all lines
+        when inside a body (between braces).
 
         Args:
             text: EmailDSL source text
@@ -237,11 +238,23 @@ class EmailDSLParser:
             Document with parsed statements
         """
         filtered_lines = []
+        brace_depth = 0
 
         for line in text.split("\n"):
             stripped = line.lstrip()
-            if stripped and stripped[0] in "#:-!@":
+
+            # Count braces to track when we're inside a body
+            open_braces = line.count("{")
+            close_braces = line.count("}")
+
+            # Keep line if it starts with special char OR we're inside a body
+            if brace_depth > 0 or (stripped and stripped[0] in "#:-!@"):
                 filtered_lines.append(line)
+
+            # Update brace depth after processing the line
+            brace_depth += open_braces - close_braces
+            # Ensure brace_depth doesn't go negative
+            brace_depth = max(0, brace_depth)
 
         filtered_text = "\n".join(filtered_lines)
         return self.parse(filtered_text)
