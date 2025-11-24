@@ -508,21 +508,27 @@ async def postmark_webhook(email: PostmarkInboundEmail):
         has_dsl_commands = any(s is not None for s in doc.statements)
 
         if has_dsl_commands:
+            # Generate timestamp once to use for both reducer and storage
+            current_timestamp = int(time.time() * 1000)  # milliseconds
+
             # Acquire lock to prevent concurrent modifications to reducer state
             async with reducer_lock:
                 # Compute rankings BEFORE processing this email
                 rankings_before = compute_rankings_from_state(reducer.state)
 
                 # Run semantic validation (reducer checks hashtag context, forward refs, zero ratios)
-                current_timestamp = str(time.time())
-                reducer.process_document(doc, user_email=email.From, timestamp=current_timestamp)
+                reducer.process_document(doc, user_email=email.From, timestamp=str(current_timestamp))
 
                 # Compute rankings AFTER processing this email
                 rankings_after = compute_rankings_from_state(reducer.state)
 
             # 2. Persist to Disk (Append-Only Log) - only after successful validation
-            # We use the TextBody as the source of truth for the parser
-            storage.save_email(email.Subject, email.TextBody, from_email=email.From)
+            # Use the same timestamp for consistency
+            filename, timestamp_str = storage.save_email(
+                email.Subject, email.TextBody,
+                from_email=email.From,
+                timestamp=current_timestamp
+            )
             GLOBAL_STATE["email_count"] += 1
 
             logger.info(f"Successfully parsed and stored email from {email.From}")

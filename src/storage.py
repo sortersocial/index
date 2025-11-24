@@ -18,7 +18,7 @@ def init_storage():
         DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def save_email(subject: str, body: str, from_email: Optional[str] = None) -> str:
+def save_email(subject: str, body: str, from_email: Optional[str] = None, timestamp: Optional[int] = None) -> Tuple[str, str]:
     """
     Saves an email body to a text file with metadata header.
     Format: {timestamp_ms}+{slugified_subject}.sorter
@@ -28,11 +28,15 @@ def save_email(subject: str, body: str, from_email: Optional[str] = None) -> str
         Timestamp: 1234567890
         ---
         [email body content]
+
+    Returns:
+        Tuple of (filename, timestamp_str)
     """
     init_storage()
 
     # Use milliseconds to help collision avoidance and sorting precision
-    timestamp = int(time.time() * 1000)
+    if timestamp is None:
+        timestamp = int(time.time() * 1000)
     slug = slugify(subject)
 
     filename = f"{timestamp}+{slug}.sorter"
@@ -51,7 +55,7 @@ def save_email(subject: str, body: str, from_email: Optional[str] = None) -> str
     logger.info(f"Persisting email to {filepath}")
     filepath.write_text(content, encoding="utf-8")
 
-    return str(filepath)
+    return (filename, str(timestamp))
 
 
 def parse_email_file(content: str) -> Tuple[str, Optional[str], Optional[str]]:
