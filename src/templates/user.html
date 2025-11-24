@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ user_email }} - Sorter</title>
+    <link rel="stylesheet" href="/static/css/base.css">
+    <link rel="stylesheet" href="/static/css/lists.css">
+    <link rel="stylesheet" href="/static/css/votes.css">
+</head>
+<body>
+    <div class="back-link">
+        <a href="/">&larr; Back to index</a>
+    </div>
+
+    <h1>{{ user_email }}</h1>
+
+    <p class="stats">
+        {{ items|length }} items created · {{ votes|length }} votes cast
+    </p>
+
+    {% if items %}
+    <h2>Items Created</h2>
+    <ul class="email-list">
+        {% for title, record in items %}
+        <li>
+            <strong>{{ title }}</strong>
+            {% if record.hashtags %}
+            <span style="color: #666; margin-left: 10px;">
+                {% for tag in record.hashtags %}
+                <a href="/hashtag/{{ tag }}">#{{ tag }}</a>
+                {% endfor %}
+            </span>
+            {% endif %}
+            {% if record.body %}
+            <div style="color: #666; margin-top: 5px;">{{ record.body[:150] }}{% if record.body|length > 150 %}...{% endif %}</div>
+            {% endif %}
+            <div style="color: #999; font-size: 0.9em; margin-top: 5px;">
+                {{ record.timestamp|relative_time }}
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if votes %}
+    <h2>Votes Cast</h2>
+    <ul class="vote-list">
+        {% for vote in votes %}
+        <li class="vote-item">
+            <div class="vote-comparison">
+                <span class="vote-item-name">{{ vote.item1 }}</span>
+                <span class="vote-arrow">→</span>
+                <span class="vote-item-name">{{ vote.item2 }}</span>
+            </div>
+            <div class="vote-slider-container">
+                {% set total = vote.ratio_left + vote.ratio_right %}
+                {% set percentage = (vote.ratio_left / total * 100)|int %}
+                <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value="{{ percentage }}"
+                    class="vote-slider"
+                    disabled
+                >
+                <div class="vote-ratio">
+                    {{ vote.ratio_left }}:{{ vote.ratio_right }}
+                </div>
+            </div>
+            {% if vote.explanation %}
+            <div class="vote-explanation">"{{ vote.explanation }}"</div>
+            {% endif %}
+            <div class="vote-meta">
+                {{ vote.timestamp|relative_time }}
+                {% if vote.attribute %}
+                · attribute: {{ vote.attribute }}
+                {% endif %}
+                {% if vote.source_filename %}
+                · <a href="/emails/{{ vote.source_filename }}" target="_blank">view email</a>
+                {% endif %}
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if not items and not votes %}
+    <p style="color: #666;">No items or votes from this user yet.</p>
+    {% endif %}
+</body>
+</html>

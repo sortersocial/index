@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email: {{ filename }} - Sorter</title>
+    <link rel="stylesheet" href="/static/css/base.css">
+    <link rel="stylesheet" href="/static/css/markdown.css">
+    <style>
+        .email-header {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .email-header-item {
+            margin: 5px 0;
+        }
+        .email-header-label {
+            font-weight: bold;
+            display: inline-block;
+            width: 100px;
+        }
+        .email-body {
+            background: white;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            line-height: 1.5;
+        }
+        .parsed-content {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+        .statement {
+            margin: 10px 0;
+            padding: 10px;
+            background: white;
+            border-left: 3px solid #007bff;
+        }
+        .statement-type {
+            font-weight: bold;
+            color: #666;
+            font-size: 0.9em;
+        }
+        .linked-text a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .linked-text a:hover {
+            text-decoration: underline;
+        }
+        .actions {
+            margin: 20px 0;
+        }
+        .actions a {
+            margin-right: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="back-link">
+        <a href="/">&larr; Back to index</a>
+    </div>
+
+    <h1>Email View</h1>
+
+    <div class="email-header">
+        <div class="email-header-item">
+            <span class="email-header-label">Filename:</span>
+            <code>{{ filename }}</code>
+        </div>
+        <div class="email-header-item">
+            <span class="email-header-label">From:</span>
+            <span>{{ from_email or "unknown" }}</span>
+        </div>
+        <div class="email-header-item">
+            <span class="email-header-label">Timestamp:</span>
+            <span>{{ timestamp|relative_time }}</span>
+        </div>
+    </div>
+
+    <div class="actions">
+        <a href="/emails/{{ filename }}/raw" target="_blank">
+            <button>View Raw</button>
+        </a>
+        {% if from_email %}
+        <a href="/user/{{ from_email }}">
+            <button>View User's Items</button>
+        </a>
+        {% endif %}
+    </div>
+
+    <h2>Email Body</h2>
+    <div class="email-body linked-text">{{ body }}</div>
+
+    {% if parsed and doc %}
+    <div class="parsed-content">
+        <h2>Parsed Statements</h2>
+        {% for stmt in doc.statements %}
+            {% if stmt %}
+            <div class="statement">
+                <span class="statement-type">
+                    {% if stmt.__class__.__name__ == "Hashtag" %}
+                    📌 Hashtag
+                    {% elif stmt.__class__.__name__ == "Item" %}
+                    📝 Item
+                    {% elif stmt.__class__.__name__ == "Vote" %}
+                    🗳️ Vote
+                    {% elif stmt.__class__.__name__ == "Attribute" %}
+                    🏷️ Attribute
+                    {% else %}
+                    {{ stmt.__class__.__name__ }}
+                    {% endif %}
+                </span>
+
+                {% if stmt.__class__.__name__ == "Hashtag" %}
+                    <a href="/hashtag/{{ stmt.name }}">#{{ stmt.name }}</a>
+
+                {% elif stmt.__class__.__name__ == "Item" %}
+                    <strong>{{ stmt.title }}</strong>
+                    {% if stmt.body %}
+                    <div style="margin-top: 5px; color: #666;">{{ stmt.body[:100] }}{% if stmt.body|length > 100 %}...{% endif %}</div>
+                    {% endif %}
+
+                {% elif stmt.__class__.__name__ == "Vote" %}
+                    <strong>{{ stmt.item1 }}</strong>
+                    <span style="color: #999;">{{ stmt.ratio_left }}:{{ stmt.ratio_right }}</span>
+                    <strong>{{ stmt.item2 }}</strong>
+                    {% if stmt.explanation %}
+                    <div style="margin-top: 5px; color: #666; font-style: italic;">"{{ stmt.explanation[:100] }}{% if stmt.explanation|length > 100 %}...{% endif %}"</div>
+                    {% endif %}
+
+                {% elif stmt.__class__.__name__ == "Attribute" %}
+                    :{{ stmt.name }}
+                {% endif %}
+            </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+</body>
+</html>

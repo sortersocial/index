@@ -435,14 +435,70 @@ async def read_root(request: Request):
     })
 
 
-@app.get("/emails/{filename}", response_class=PlainTextResponse)
-async def get_email(filename: str):
-    """Serve a specific email file as plain text"""
+@app.get("/emails/{filename}/raw", response_class=PlainTextResponse)
+async def get_email_raw(filename: str):
+    """Serve email as raw plaintext"""
     result = storage.get_email(filename)
     if result is None:
         return PlainTextResponse("Email not found", status_code=404)
     body, from_email, timestamp = result
     return PlainTextResponse(body)
+
+
+@app.get("/emails/{filename}", response_class=HTMLResponse)
+async def get_email(request: Request, filename: str):
+    """Serve email with parsed content and links"""
+    result = storage.get_email(filename)
+    if result is None:
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "message": "Email not found"
+        }, status_code=404)
+
+    body, from_email, timestamp = result
+
+    # Parse the email to extract structure
+    try:
+        doc = parser.parse_lines(body)
+        parsed = True
+    except:
+        doc = None
+        parsed = False
+
+    return templates.TemplateResponse("email.html", {
+        "request": request,
+        "filename": filename,
+        "body": body,
+        "from_email": from_email,
+        "timestamp": timestamp,
+        "doc": doc,
+        "parsed": parsed
+    })
+
+
+@app.get("/user/{user_email}", response_class=HTMLResponse)
+async def view_user(request: Request, user_email: str):
+    """View all items and votes by a specific user"""
+    async with reducer_lock:
+        # Get items created by this user
+        user_items = [
+            (title, record)
+            for title, record in reducer.state.items.items()
+            if record.created_by == user_email
+        ]
+
+        # Get votes by this user
+        user_votes = [
+            vote for vote in reducer.state.votes
+            if vote.user_email == user_email
+        ]
+
+    return templates.TemplateResponse("user.html", {
+        "request": request,
+        "user_email": user_email,
+        "items": user_items,
+        "votes": user_votes
+    })
 
 
 @app.get("/hashtag/{hashtag_name}", response_class=HTMLResponse)
