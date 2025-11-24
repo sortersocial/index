@@ -85,13 +85,13 @@
         </div>
     </div>
 
-    <div class="actions">
-        <a href="/emails/{{ filename }}/raw" target="_blank">
-            <button>View Raw</button>
+    <div class="action-buttons">
+        <a href="/emails/{{ filename }}/raw" target="_blank" class="button">
+            View Raw
         </a>
         {% if from_email %}
-        <a href="/user/{{ from_email }}">
-            <button>View User's Items</button>
+        <a href="/user/{{ from_email }}" class="button">
+            View User's Items
         </a>
         {% endif %}
     </div>

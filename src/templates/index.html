@@ -13,9 +13,9 @@
     <p>Email anything to <a href="mailto:about@mail.sorter.social">about@mail.sorter.social</a> to get started.</p>
     <p class="stats">Emails processed: {{ count }}</p>
 
-    <div>
-        <a href="mailto:about@mail.sorter.social?subject=New Submission&body={{ ('#hashtag\n-item-name { description }')|urlencode }}">
-            <button type="button">Quick Submit</button>
+    <div class="action-buttons">
+        <a href="mailto:about@mail.sorter.social?subject=New Submission&body={{ ('#hashtag\n-item-name { description }')|urlencode }}" class="button">
+            Quick Submit
         </a>
     </div>
 
