@@ -13,6 +13,11 @@
             line-height: 1.6;
         }
         h1 { margin-bottom: 0.5em; }
+        h2 { 
+            margin-top: 2em; 
+            margin-bottom: 1em;
+            font-size: 1.5em;
+        }
         .stats { color: #666; margin-bottom: 2em; }
         .back-link { margin-bottom: 2em; }
         .item-list { list-style: none; padding: 0; }
@@ -45,6 +50,116 @@
         .no-items {
             color: #666;
             font-style: italic;
+        }
+        
+        /* Vote visualization styles */
+        .vote-list {
+            list-style: none;
+            padding: 0;
+        }
+        .vote-item {
+            padding: 15px;
+            margin: 10px 0;
+            background: #f9f9f9;
+            border-radius: 4px;
+            border-left: 3px solid #0066cc;
+        }
+        .vote-comparison {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .vote-item-name {
+            font-weight: 600;
+            color: #333;
+            font-family: monospace;
+            font-size: 0.95em;
+        }
+        .vote-arrow {
+            color: #0066cc;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+        .vote-slider-container {
+            width: 100%;
+            margin: 10px 0;
+        }
+        .vote-slider {
+            width: 100%;
+            height: 8px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: linear-gradient(to right, #e74c3c 0%, #95a5a6 50%, #27ae60 100%);
+            outline: none;
+            border-radius: 4px;
+            pointer-events: none;
+        }
+        .vote-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #0066cc;
+            cursor: default;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .vote-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #0066cc;
+            cursor: default;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .vote-ratio {
+            text-align: center;
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 5px;
+            font-family: monospace;
+        }
+        .vote-meta {
+            color: #999;
+            font-size: 0.85em;
+            margin-top: 8px;
+        }
+        .vote-explanation {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 8px;
+            font-style: italic;
+        }
+        
+        /* Mobile responsive */
+        @media (max-width: 640px) {
+            body {
+                margin: 20px auto;
+                padding: 0 15px;
+            }
+            h1 {
+                font-size: 1.5em;
+            }
+            h2 {
+                font-size: 1.3em;
+            }
+            .item-list li,
+            .vote-item {
+                padding: 12px;
+            }
+            .vote-comparison {
+                gap: 8px;
+            }
+            .vote-item-name {
+                font-size: 0.85em;
+            }
+            .item-title {
+                font-size: 1em;
+            }
         }
     </style>
 </head>
@@ -88,6 +203,51 @@
     </ol>
     {% else %}
     <p class="no-items">No items yet under this hashtag.</p>
+    {% endif %}
+
+    {% if votes %}
+    <h2>Vote History</h2>
+    <ul class="vote-list">
+        {% for vote in votes %}
+        <li class="vote-item">
+            <div class="vote-comparison">
+                <span class="vote-item-name">{{ vote.item1 }}</span>
+                <span class="vote-arrow">→</span>
+                <span class="vote-item-name">{{ vote.item2 }}</span>
+            </div>
+            <div class="vote-slider-container">
+                {% set total = vote.ratio_left + vote.ratio_right %}
+                {% set percentage = (vote.ratio_left / total * 100)|int %}
+                <input 
+                    type="range" 
+                    min="0" 
+                    max="100" 
+                    value="{{ percentage }}" 
+                    class="vote-slider"
+                    disabled
+                >
+                <div class="vote-ratio">
+                    {{ vote.ratio_left }}:{{ vote.ratio_right }}
+                    ({{ vote.item1 }} {{ percentage }}% preferred)
+                </div>
+            </div>
+            {% if vote.explanation %}
+            <div class="vote-explanation">"{{ vote.explanation }}"</div>
+            {% endif %}
+            <div class="vote-meta">
+                {% if vote.user_email %}
+                by {{ vote.user_email }}
+                {% endif %}
+                {% if vote.timestamp %}
+                · {{ vote.timestamp|relative_time }}
+                {% endif %}
+                {% if vote.attribute %}
+                · attribute: {{ vote.attribute }}
+                {% endif %}
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
     {% endif %}
 </body>
 </html>

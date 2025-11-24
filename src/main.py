@@ -463,6 +463,7 @@ async def view_hashtag(request: Request, hashtag_name: str):
         "request": request,
         "hashtag": hashtag_name,
         "items": items_with_ranks,
+        "votes": hashtag_votes,
         "vote_count": len(hashtag_votes)
     })
 
