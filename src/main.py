@@ -445,9 +445,23 @@ async def view_hashtag(request: Request, hashtag_name: str):
                 "rankings": []
             })
 
-        # Get global rankings
+        # Get global rankings and filter to this hashtag
         all_rankings = compute_rankings_from_state(reducer.state)
-        rank_map = {title: (rank, score) for title, score, rank in all_rankings}
+
+        # Filter rankings to only items in this hashtag
+        hashtag_item_titles = {title for title, _ in items_in_hashtag}
+        filtered_rankings = [
+            (title, score, rank) for title, score, rank in all_rankings
+            if title in hashtag_item_titles
+        ]
+
+        # Re-number ranks within hashtag context (1, 2, 3... not global ranks)
+        filtered_rankings_renumbered = [
+            (title, score, idx + 1)
+            for idx, (title, score, _) in enumerate(filtered_rankings)
+        ]
+
+        rank_map = {title: (rank, score) for title, score, rank in filtered_rankings_renumbered}
 
         # Sort items by their rank
         items_with_ranks = [
