@@ -14,7 +14,7 @@ import humanize
 import httpx
 from postmarker.core import PostmarkClient
 from src import storage
-from src.parser import EmailDSLParser
+from src.parser import EmailDSLParser, Hashtag
 from src.reducer import Reducer, ParseError
 from src.rank import compute_rankings_from_state
 from lark.exceptions import LarkError
@@ -494,6 +494,12 @@ async def postmark_webhook(email: PostmarkInboundEmail):
         has_dsl_commands = any(s is not None for s in doc.statements)
 
         if has_dsl_commands:
+            # Extract hashtags mentioned in this email
+            mentioned_hashtags = {
+                stmt.name for stmt in doc.statements
+                if isinstance(stmt, Hashtag)
+            }
+
             # Generate timestamp once to use for both reducer and storage
             current_timestamp = int(time.time() * 1000)  # milliseconds
 
@@ -507,6 +513,18 @@ async def postmark_webhook(email: PostmarkInboundEmail):
 
                 # Compute rankings AFTER processing this email
                 rankings_after = compute_rankings_from_state(reducer.state)
+
+            # Filter rankings to only show items from mentioned hashtags
+            if mentioned_hashtags:
+                rankings_before = [
+                    (title, score, rank) for title, score, rank in rankings_before
+                    if any(tag in reducer.state.items[title].hashtags for tag in mentioned_hashtags)
+                ] if rankings_before else []
+
+                rankings_after = [
+                    (title, score, rank) for title, score, rank in rankings_after
+                    if any(tag in reducer.state.items[title].hashtags for tag in mentioned_hashtags)
+                ]
 
             # 2. Persist to Disk (Append-Only Log) - only after successful validation
             # Use the same timestamp for consistency
