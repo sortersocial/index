@@ -1,0 +1,21 @@
+# Grammar Design Q&A
+
+## 1. Can items exist without a hashtag?
+no, but they might have multiple hashtags? not for v1.
+
+## 2. Attribute values - how do they work?
+:attributes are context for votes. like if you set :difficulty, the next 10:1 is a judgement of which is more difficult.
+
+## 3. Forward references in votes?
+can be error for now.
+
+## 4. Item body optional?
+yes.
+
+## 5. Multi-paragraph bodies? Nested braces?
+yes, nested braces, we need to sort C code snippets too. not sure how to handle this. was thinking of erroring if i ever encounter a another {, unless its {{, which is a stronger delimiter for encapsulating C snippets. if {{ isnt powerful enough, then we can do {{{. but that can be v2.
+
+also, votes can have { explanation } too.
+
+## 6. The \ character?
+not sure what \ could be. drop it for now.
