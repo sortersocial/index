@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from typing import Optional, List
 from contextlib import asynccontextmanager
+import asyncio
 import logging
 import os
 import httpx
@@ -39,14 +40,22 @@ async def lifespan(app: FastAPI):
     
     # Replay history
     count = 0
-    for email_body in storage.stream_history():
+    errors = 0
+    for body, from_email, timestamp in storage.stream_history():
         count += 1
-        # TODO: Feed this body into the Grammar Parser
-        # parser.process(email_body, GLOBAL_STATE)
-        pass
-    
+        try:
+            # Parse and process each historical email
+            doc = parser.parse_lines(body)
+            if any(s is not None for s in doc.statements):
+                # Re-use the exact same logic as the webhook
+                reducer.process_document(doc, user_email=from_email, timestamp=timestamp)
+        except Exception as e:
+            errors += 1
+            logger.error(f"Failed to replay email {count}: {e}")
+
     GLOBAL_STATE["email_count"] = count
-    logger.info(f"--- STARTUP COMPLETE: Replayed {count} events ---")
+    logger.info(f"--- STARTUP COMPLETE: Replayed {count} events ({errors} errors) ---")
+    logger.info(f"State: {len(reducer.state.items)} items, {len(reducer.state.votes)} votes")
     
     yield
     
@@ -65,6 +74,9 @@ if not postmark:
 # Initialize parser and reducer
 parser = EmailDSLParser()
 reducer = Reducer()
+
+# Concurrency lock to protect reducer state
+reducer_lock = asyncio.Lock()
 
 # OpenRouter configuration
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
@@ -326,29 +338,31 @@ class PostmarkInboundEmail(BaseModel):
 async def read_root(request: Request):
     emails = storage.list_emails()
 
-    # Collect hashtag statistics from reducer state
-    hashtag_stats = {}
-    for item_title, item_record in reducer.state.items.items():
-        for hashtag in item_record.hashtags:
-            if hashtag not in hashtag_stats:
-                hashtag_stats[hashtag] = {"items": 0, "votes": 0}
-            hashtag_stats[hashtag]["items"] += 1
+    # Acquire lock for consistent read of reducer state
+    async with reducer_lock:
+        # Collect hashtag statistics from reducer state
+        hashtag_stats = {}
+        for item_title, item_record in reducer.state.items.items():
+            for hashtag in item_record.hashtags:
+                if hashtag not in hashtag_stats:
+                    hashtag_stats[hashtag] = {"items": 0, "votes": 0}
+                hashtag_stats[hashtag]["items"] += 1
 
-    # Count votes per hashtag (count votes where both items share the hashtag)
-    for vote in reducer.state.votes:
-        item1_hashtags = reducer.state.items[vote.item1].hashtags
-        item2_hashtags = reducer.state.items[vote.item2].hashtags
-        shared_hashtags = item1_hashtags & item2_hashtags
-        for hashtag in shared_hashtags:
-            if hashtag in hashtag_stats:
-                hashtag_stats[hashtag]["votes"] += 1
+        # Count votes per hashtag (count votes where both items share the hashtag)
+        for vote in reducer.state.votes:
+            item1_hashtags = reducer.state.items[vote.item1].hashtags
+            item2_hashtags = reducer.state.items[vote.item2].hashtags
+            shared_hashtags = item1_hashtags & item2_hashtags
+            for hashtag in shared_hashtags:
+                if hashtag in hashtag_stats:
+                    hashtag_stats[hashtag]["votes"] += 1
 
-    # Sort hashtags by total activity (items + votes)
-    sorted_hashtags = sorted(
-        hashtag_stats.items(),
-        key=lambda x: (x[1]["items"] + x[1]["votes"]),
-        reverse=True
-    )
+        # Sort hashtags by total activity (items + votes)
+        sorted_hashtags = sorted(
+            hashtag_stats.items(),
+            key=lambda x: (x[1]["items"] + x[1]["votes"]),
+            reverse=True
+        )
 
     return templates.TemplateResponse("index.html", {
         "request": request,
@@ -371,38 +385,40 @@ async def get_email(filename: str):
 @app.get("/hashtag/{hashtag_name}", response_class=HTMLResponse)
 async def view_hashtag(request: Request, hashtag_name: str):
     """View items under a specific hashtag, ranked"""
-    # Get all items under this hashtag
-    items_in_hashtag = [
-        (title, record)
-        for title, record in reducer.state.items.items()
-        if hashtag_name in record.hashtags
-    ]
+    # Acquire lock for consistent read of reducer state
+    async with reducer_lock:
+        # Get all items under this hashtag
+        items_in_hashtag = [
+            (title, record)
+            for title, record in reducer.state.items.items()
+            if hashtag_name in record.hashtags
+        ]
 
-    if not items_in_hashtag:
-        return templates.TemplateResponse("hashtag.html", {
-            "request": request,
-            "hashtag": hashtag_name,
-            "items": [],
-            "rankings": []
-        })
+        if not items_in_hashtag:
+            return templates.TemplateResponse("hashtag.html", {
+                "request": request,
+                "hashtag": hashtag_name,
+                "items": [],
+                "rankings": []
+            })
 
-    # Get global rankings
-    all_rankings = compute_rankings_from_state(reducer.state)
-    rank_map = {title: (rank, score) for title, score, rank in all_rankings}
+        # Get global rankings
+        all_rankings = compute_rankings_from_state(reducer.state)
+        rank_map = {title: (rank, score) for title, score, rank in all_rankings}
 
-    # Sort items by their rank
-    items_with_ranks = [
-        (title, record, rank_map.get(title, (999999, 0.0)))
-        for title, record in items_in_hashtag
-    ]
-    items_with_ranks.sort(key=lambda x: x[2][0])  # Sort by rank
+        # Sort items by their rank
+        items_with_ranks = [
+            (title, record, rank_map.get(title, (999999, 0.0)))
+            for title, record in items_in_hashtag
+        ]
+        items_with_ranks.sort(key=lambda x: x[2][0])  # Sort by rank
 
-    # Get votes for items in this hashtag
-    hashtag_votes = [
-        vote for vote in reducer.state.votes
-        if (vote.item1 in [title for title, _, _ in items_with_ranks] and
-            vote.item2 in [title for title, _, _ in items_with_ranks])
-    ]
+        # Get votes for items in this hashtag
+        hashtag_votes = [
+            vote for vote in reducer.state.votes
+            if (vote.item1 in [title for title, _, _ in items_with_ranks] and
+                vote.item2 in [title for title, _, _ in items_with_ranks])
+        ]
 
     return templates.TemplateResponse("hashtag.html", {
         "request": request,
@@ -440,14 +456,16 @@ async def postmark_webhook(email: PostmarkInboundEmail):
         has_dsl_commands = any(s is not None for s in doc.statements)
 
         if has_dsl_commands:
-            # Compute rankings BEFORE processing this email
-            rankings_before = compute_rankings_from_state(reducer.state)
+            # Acquire lock to prevent concurrent modifications to reducer state
+            async with reducer_lock:
+                # Compute rankings BEFORE processing this email
+                rankings_before = compute_rankings_from_state(reducer.state)
 
-            # Run semantic validation (reducer checks hashtag context, forward refs, zero ratios)
-            reducer.process_document(doc, user_email=email.From)
+                # Run semantic validation (reducer checks hashtag context, forward refs, zero ratios)
+                reducer.process_document(doc, user_email=email.From)
 
-            # Compute rankings AFTER processing this email
-            rankings_after = compute_rankings_from_state(reducer.state)
+                # Compute rankings AFTER processing this email
+                rankings_after = compute_rankings_from_state(reducer.state)
 
             logger.info(f"Successfully parsed email from {email.From}")
         else:
