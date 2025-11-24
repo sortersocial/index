@@ -38,6 +38,7 @@ class VoteRecord:
     explanation: Optional[str]
     user_email: Optional[str] = None  # Email address of voter
     timestamp: Optional[str] = None
+    source_filename: Optional[str] = None  # Filename of source email
 
 
 @dataclass
@@ -57,12 +58,14 @@ class Reducer:
         self.current_hashtag: Optional[str] = None
         self.current_attribute: Optional[str] = None
         self.current_user_email: Optional[str] = None
+        self.current_source_filename: Optional[str] = None
 
     def process_document(
         self,
         doc: Document,
         timestamp: Optional[str] = None,
         user_email: Optional[str] = None,
+        source_filename: Optional[str] = None,
     ):
         """Process a parsed document and update state.
 
@@ -70,6 +73,7 @@ class Reducer:
             doc: Parsed document
             timestamp: Optional timestamp for this document
             user_email: Optional email address of the document author
+            source_filename: Optional filename of source email
 
         Raises:
             ParseError: If semantic validation fails
@@ -78,6 +82,7 @@ class Reducer:
         self.current_hashtag = None
         self.current_attribute = None
         self.current_user_email = user_email
+        self.current_source_filename = source_filename
 
         for statement in doc.statements:
             if statement is None:
@@ -178,6 +183,7 @@ class Reducer:
                 explanation=vote.explanation,
                 user_email=self.current_user_email,
                 timestamp=timestamp,
+                source_filename=self.current_source_filename,
             )
         )
 

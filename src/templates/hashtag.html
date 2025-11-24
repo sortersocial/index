@@ -106,6 +106,9 @@
                 {% if vote.attribute %}
                 · attribute: {{ vote.attribute }}
                 {% endif %}
+                {% if vote.source_filename %}
+                · <a href="/emails/{{ vote.source_filename }}" target="_blank">view email</a>
+                {% endif %}
             </div>
         </li>
         {% endfor %}

@@ -553,8 +553,16 @@ async def postmark_webhook(email: PostmarkInboundEmail):
                 else:
                     rankings_before = []
 
+                # 2. Persist to Disk BEFORE processing (so we have filename)
+                # Use the same timestamp for consistency
+                filename, timestamp_str = storage.save_email(
+                    email.Subject, email.TextBody,
+                    from_email=email.From,
+                    timestamp=current_timestamp
+                )
+
                 # Run semantic validation (reducer checks hashtag context, forward refs, zero ratios)
-                reducer.process_document(doc, user_email=email.From, timestamp=str(current_timestamp))
+                reducer.process_document(doc, user_email=email.From, timestamp=str(current_timestamp), source_filename=filename)
 
                 # Filter to items in mentioned hashtags AFTER processing
                 if mentioned_hashtags:
@@ -572,15 +580,7 @@ async def postmark_webhook(email: PostmarkInboundEmail):
                 else:
                     rankings_after = []
 
-            # 2. Persist to Disk (Append-Only Log) - only after successful validation
-            # Use the same timestamp for consistency
-            filename, timestamp_str = storage.save_email(
-                email.Subject, email.TextBody,
-                from_email=email.From,
-                timestamp=current_timestamp
-            )
             GLOBAL_STATE["email_count"] += 1
-
             logger.info(f"Successfully parsed and stored email from {email.From}")
         else:
             logger.info(f"Email from {email.From} contains no DSL commands")
