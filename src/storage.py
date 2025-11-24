@@ -112,21 +112,27 @@ def stream_history() -> Generator[Tuple[str, Optional[str], Optional[str]], None
         yield parse_email_file(content)
 
 
-def list_emails() -> List[Tuple[str, str]]:
+def list_emails() -> List[Tuple[str, str, str, Optional[str]]]:
     """
-    Returns a list of (filename, subject) tuples for all emails.
+    Returns a list of (filename, subject, timestamp, from_email) tuples for all emails.
     Sorted by timestamp (newest first).
     """
     init_storage()
     files = sorted(DATA_DIR.glob("*.sorter"), reverse=True)
-    
+
     result = []
     for f in files:
-        # Extract subject from filename: {timestamp}+{slug}.sorter
+        # Extract subject and timestamp from filename: {timestamp}+{slug}.sorter
         name = f.stem  # removes .sorter
         parts = name.split("+", 1)
+        timestamp = parts[0] if parts else ""
         subject = parts[1] if len(parts) > 1 else name
-        result.append((f.name, subject))
+
+        # Parse file to get from_email
+        content = f.read_text(encoding="utf-8")
+        _, from_email, _ = parse_email_file(content)
+
+        result.append((f.name, subject, timestamp, from_email))
     
     return result
 

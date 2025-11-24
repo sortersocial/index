@@ -41,7 +41,8 @@
         <li>
             <a href="/hashtag/{{ hashtag }}">#{{ hashtag }}</a>
             <span style="color: #666; margin-left: 10px;">
-                {{ stats.items }} items, {{ stats.votes }} votes
+                {{ stats["items"] }} items, {{ stats["votes"] }} votes
+                · {{ stats["last_updated"]|relative_time }}
             </span>
         </li>
         {% endfor %}
@@ -51,9 +52,13 @@
     {% if emails %}
     <h2>Email Archive</h2>
     <ul class="email-list">
-        {% for filename, subject in emails %}
+        {% for filename, subject, timestamp, from_email in emails %}
         <li>
             <a href="/emails/{{ filename }}" target="_blank">{{ subject }}</a>
+            <span style="color: #666; margin-left: 10px;">
+                from {{ from_email or "unknown" }}
+                · {{ timestamp|relative_time }}
+            </span>
         </li>
         {% endfor %}
     </ul>

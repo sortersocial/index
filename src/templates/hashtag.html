@@ -68,6 +68,9 @@
             <div>
                 <span class="item-rank">#{{ rank_info[0] }}</span>
                 <span class="item-title">{{ title }}</span>
+                <span style="color: #999; font-size: 0.9em; margin-left: 8px;">
+                    (score: {{ "%.4f"|format(rank_info[1]) }})
+                </span>
             </div>
             {% if record.body %}
             <div class="item-body">{{ record.body }}</div>
@@ -77,7 +80,7 @@
                 Created by {{ record.created_by }}
                 {% endif %}
                 {% if record.timestamp %}
-                · {{ record.timestamp }}
+                · {{ record.timestamp|relative_time }}
                 {% endif %}
             </div>
         </li>

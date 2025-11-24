@@ -7,6 +7,9 @@ from contextlib import asynccontextmanager
 import asyncio
 import logging
 import os
+import time
+from datetime import datetime
+import humanize
 import httpx
 from postmarker.core import PostmarkClient
 from src import storage
@@ -25,6 +28,27 @@ GLOBAL_STATE = {
     "email_count": 0,
     # TODO: Add "Graph", "Entities", "Slugs" here
 }
+
+
+def format_relative_time(timestamp_str: Optional[str]) -> str:
+    """
+    Format a unix timestamp string as relative time using humanize.
+
+    Args:
+        timestamp_str: Unix timestamp as string, or None
+
+    Returns:
+        Formatted relative time string (e.g., "10 seconds ago")
+    """
+    if not timestamp_str:
+        return "never"
+
+    try:
+        timestamp = float(timestamp_str)
+        dt = datetime.fromtimestamp(timestamp)
+        return humanize.naturaltime(dt)
+    except (ValueError, TypeError):
+        return "unknown"
 
 
 @asynccontextmanager
@@ -64,6 +88,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 templates = Jinja2Templates(directory="src/templates")
+
+# Add custom filters to Jinja2
+templates.env.filters["relative_time"] = format_relative_time
 
 # Initialize Postmark client
 postmark_token = os.getenv("POSTMARK_SERVER_TOKEN")
@@ -188,6 +215,27 @@ Be concise and helpful. Assume they're smart but new to the syntax."""
         logger.error(f"OpenRouter API error: {e}")
         # Fallback to just the raw error
         return f"Parse error: {error_message}\n\nPlease check the EmailDSL syntax and try again."
+
+
+def format_relative_time(timestamp_str: Optional[str]) -> str:
+    """
+    Format a unix timestamp string as relative time using humanize.
+
+    Args:
+        timestamp_str: Unix timestamp as string, or None
+
+    Returns:
+        Formatted relative time string (e.g., "10 seconds ago")
+    """
+    if not timestamp_str:
+        return "never"
+
+    try:
+        timestamp = float(timestamp_str)
+        dt = datetime.fromtimestamp(timestamp)
+        return humanize.naturaltime(dt)
+    except (ValueError, TypeError):
+        return "unknown"
 
 
 def format_rankings_with_deltas(
@@ -345,8 +393,13 @@ async def read_root(request: Request):
         for item_title, item_record in reducer.state.items.items():
             for hashtag in item_record.hashtags:
                 if hashtag not in hashtag_stats:
-                    hashtag_stats[hashtag] = {"items": 0, "votes": 0}
+                    hashtag_stats[hashtag] = {"items": 0, "votes": 0, "last_updated": None}
                 hashtag_stats[hashtag]["items"] += 1
+                # Track most recent timestamp for this hashtag
+                if item_record.timestamp:
+                    current_ts = hashtag_stats[hashtag]["last_updated"]
+                    if current_ts is None or item_record.timestamp > current_ts:
+                        hashtag_stats[hashtag]["last_updated"] = item_record.timestamp
 
         # Count votes per hashtag (count votes where both items share the hashtag)
         for vote in reducer.state.votes:
@@ -356,11 +409,16 @@ async def read_root(request: Request):
             for hashtag in shared_hashtags:
                 if hashtag in hashtag_stats:
                     hashtag_stats[hashtag]["votes"] += 1
+                    # Update timestamp from vote if more recent
+                    if vote.timestamp:
+                        current_ts = hashtag_stats[hashtag]["last_updated"]
+                        if current_ts is None or vote.timestamp > current_ts:
+                            hashtag_stats[hashtag]["last_updated"] = vote.timestamp
 
-        # Sort hashtags by total activity (items + votes)
+        # Sort hashtags by most recently updated
         sorted_hashtags = sorted(
             hashtag_stats.items(),
-            key=lambda x: (x[1]["items"] + x[1]["votes"]),
+            key=lambda x: x[1]["last_updated"] or "0",
             reverse=True
         )
 
