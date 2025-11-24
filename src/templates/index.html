@@ -34,6 +34,20 @@
     <p>Email anything to <a href="mailto:about@mail.sorter.social">about@mail.sorter.social</a> to get started.</p>
     <p class="stats">Emails processed: {{ count }}</p>
 
+    {% if hashtags %}
+    <h2>Hashtags</h2>
+    <ul class="email-list">
+        {% for hashtag, stats in hashtags %}
+        <li>
+            <a href="/hashtag/{{ hashtag }}">#{{ hashtag }}</a>
+            <span style="color: #666; margin-left: 10px;">
+                {{ stats.items }} items, {{ stats.votes }} votes
+            </span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
     {% if emails %}
     <h2>Email Archive</h2>
     <ul class="email-list">

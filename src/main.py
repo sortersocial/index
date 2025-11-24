@@ -325,10 +325,36 @@ class PostmarkInboundEmail(BaseModel):
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     emails = storage.list_emails()
+
+    # Collect hashtag statistics from reducer state
+    hashtag_stats = {}
+    for item_title, item_record in reducer.state.items.items():
+        for hashtag in item_record.hashtags:
+            if hashtag not in hashtag_stats:
+                hashtag_stats[hashtag] = {"items": 0, "votes": 0}
+            hashtag_stats[hashtag]["items"] += 1
+
+    # Count votes per hashtag (count votes where both items share the hashtag)
+    for vote in reducer.state.votes:
+        item1_hashtags = reducer.state.items[vote.item1].hashtags
+        item2_hashtags = reducer.state.items[vote.item2].hashtags
+        shared_hashtags = item1_hashtags & item2_hashtags
+        for hashtag in shared_hashtags:
+            if hashtag in hashtag_stats:
+                hashtag_stats[hashtag]["votes"] += 1
+
+    # Sort hashtags by total activity (items + votes)
+    sorted_hashtags = sorted(
+        hashtag_stats.items(),
+        key=lambda x: (x[1]["items"] + x[1]["votes"]),
+        reverse=True
+    )
+
     return templates.TemplateResponse("index.html", {
         "request": request,
         "count": GLOBAL_STATE["email_count"],
-        "emails": emails
+        "emails": emails,
+        "hashtags": sorted_hashtags
     })
 
 
@@ -340,6 +366,51 @@ async def get_email(filename: str):
         return PlainTextResponse("Email not found", status_code=404)
     body, from_email, timestamp = result
     return PlainTextResponse(body)
+
+
+@app.get("/hashtag/{hashtag_name}", response_class=HTMLResponse)
+async def view_hashtag(request: Request, hashtag_name: str):
+    """View items under a specific hashtag, ranked"""
+    # Get all items under this hashtag
+    items_in_hashtag = [
+        (title, record)
+        for title, record in reducer.state.items.items()
+        if hashtag_name in record.hashtags
+    ]
+
+    if not items_in_hashtag:
+        return templates.TemplateResponse("hashtag.html", {
+            "request": request,
+            "hashtag": hashtag_name,
+            "items": [],
+            "rankings": []
+        })
+
+    # Get global rankings
+    all_rankings = compute_rankings_from_state(reducer.state)
+    rank_map = {title: (rank, score) for title, score, rank in all_rankings}
+
+    # Sort items by their rank
+    items_with_ranks = [
+        (title, record, rank_map.get(title, (999999, 0.0)))
+        for title, record in items_in_hashtag
+    ]
+    items_with_ranks.sort(key=lambda x: x[2][0])  # Sort by rank
+
+    # Get votes for items in this hashtag
+    hashtag_votes = [
+        vote for vote in reducer.state.votes
+        if (vote.item1 in [title for title, _, _ in items_with_ranks] and
+            vote.item2 in [title for title, _, _ in items_with_ranks])
+    ]
+
+    return templates.TemplateResponse("hashtag.html", {
+        "request": request,
+        "hashtag": hashtag_name,
+        "items": items_with_ranks,
+        "vote_count": len(hashtag_votes)
+    })
+
 
 @app.post("/webhook/postmark")
 async def postmark_webhook(email: PostmarkInboundEmail):

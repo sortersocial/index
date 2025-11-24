@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>#{{ hashtag }} - Sorter</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 0 20px;
+            line-height: 1.6;
+        }
+        h1 { margin-bottom: 0.5em; }
+        .stats { color: #666; margin-bottom: 2em; }
+        .back-link { margin-bottom: 2em; }
+        .item-list { list-style: none; padding: 0; }
+        .item-list li {
+            padding: 15px;
+            margin: 10px 0;
+            background: #f5f5f5;
+            border-radius: 4px;
+        }
+        .item-title {
+            font-weight: bold;
+            font-size: 1.1em;
+            color: #333;
+        }
+        .item-rank {
+            color: #0066cc;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        .item-body {
+            color: #666;
+            margin-top: 8px;
+            font-size: 0.95em;
+        }
+        .item-meta {
+            color: #999;
+            font-size: 0.85em;
+            margin-top: 8px;
+        }
+        .no-items {
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="back-link">
+        <a href="/">&larr; Back to index</a>
+    </div>
+
+    <h1>#{{ hashtag }}</h1>
+    <p class="stats">
+        {{ items|length }} items
+        {% if vote_count is defined %}
+        · {{ vote_count }} votes
+        {% endif %}
+    </p>
+
+    {% if items %}
+    <ol class="item-list">
+        {% for title, record, rank_info in items %}
+        <li>
+            <div>
+                <span class="item-rank">#{{ rank_info[0] }}</span>
+                <span class="item-title">{{ title }}</span>
+            </div>
+            {% if record.body %}
+            <div class="item-body">{{ record.body }}</div>
+            {% endif %}
+            <div class="item-meta">
+                {% if record.created_by %}
+                Created by {{ record.created_by }}
+                {% endif %}
+                {% if record.timestamp %}
+                · {{ record.timestamp }}
+                {% endif %}
+            </div>
+        </li>
+        {% endfor %}
+    </ol>
+    {% else %}
+    <p class="no-items">No items yet under this hashtag.</p>
+    {% endif %}
+</body>
+</html>
