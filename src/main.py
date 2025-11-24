@@ -514,7 +514,8 @@ async def postmark_webhook(email: PostmarkInboundEmail):
                 rankings_before = compute_rankings_from_state(reducer.state)
 
                 # Run semantic validation (reducer checks hashtag context, forward refs, zero ratios)
-                reducer.process_document(doc, user_email=email.From)
+                current_timestamp = str(time.time())
+                reducer.process_document(doc, user_email=email.From, timestamp=current_timestamp)
 
                 # Compute rankings AFTER processing this email
                 rankings_after = compute_rankings_from_state(reducer.state)
