@@ -54,11 +54,11 @@
     <ul class="email-list">
         {% for filename, subject, timestamp, from_email in emails %}
         <li>
-            <a href="/emails/{{ filename }}" target="_blank">{{ subject }}</a>
-            <span style="color: #666; margin-left: 10px;">
-                from {{ from_email or "unknown" }}
+            <span style="color: #666;">
+                {{ from_email or "unknown" }}
                 · {{ timestamp|relative_time }}
             </span>
+            <a href="/emails/{{ filename }}" target="_blank" style="margin-left: 10px;">{{ subject }}</a>
         </li>
         {% endfor %}
     </ul>
