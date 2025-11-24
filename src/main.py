@@ -176,6 +176,71 @@ Be concise and helpful. Assume they're smart but new to the syntax."""
         # Fallback to just the raw error
         return f"Parse error: {error_message}\n\nPlease check the EmailDSL syntax and try again."
 
+
+async def respond_to_natural_language(user_message: str, grammar: str) -> str:
+    """
+    Respond to natural language queries about the system.
+
+    Args:
+        user_message: The user's message
+        grammar: The EmailDSL grammar documentation
+
+    Returns:
+        A helpful response explaining what sorter is and how to use it
+    """
+    prompt = f"""You are Sorter, an email-based system for collaborative ranking and decision-making.
+
+A user sent you an email that doesn't contain any EmailDSL commands. Here's what they said:
+
+```
+{user_message}
+```
+
+Respond naturally to their message. If they're asking what you are, explain:
+- You're a competitive folksonomy system that ranks items via pairwise comparisons
+- Users submit items and votes by email using a simple DSL
+- The system uses rank centrality (stationary distribution of a Markov chain) to compute rankings
+
+Then briefly explain the EmailDSL syntax:
+{grammar}
+
+Be friendly, concise, and encouraging. Invite them to try it out."""
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                OPENROUTER_API_URL,
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "anthropic/claude-3.5-haiku",
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": prompt,
+                        }
+                    ],
+                },
+            )
+            response.raise_for_status()
+            result = response.json()
+            return result["choices"][0]["message"]["content"]
+    except Exception as e:
+        logger.error(f"OpenRouter API error: {e}")
+        # Fallback response
+        return f"""Hello! I'm Sorter, an email-based ranking system.
+
+I help you rank items through pairwise comparisons using a simple email syntax. To use me, send emails with:
+
+#category - create a category
++item-name {{ description }} - add items
++item1 > +item2 - vote (item1 is better)
+
+Try sending an email with those commands to get started!"""
+
+
 # Postmark Inbound Email Schema
 class PostmarkAttachment(BaseModel):
     Name: str
@@ -205,11 +270,6 @@ class PostmarkInboundEmail(BaseModel):
     Tag: Optional[str] = None
     Headers: List[dict]
     Attachments: List[PostmarkAttachment] = []
-
-def build_reply_body(original_text: str) -> str:
-    """Construct the text body for an auto-reply with quoted text"""
-    quoted = "\n".join(f"> {line}" for line in original_text.splitlines())
-    return f"Thanks for your email!\n\n{quoted}"
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
@@ -246,12 +306,21 @@ async def postmark_webhook(email: PostmarkInboundEmail):
 
     # 2. Parse and validate the email
     parse_error_message = None
+    doc = None
+    has_dsl_commands = False
+
     try:
         # Parse with line filtering (ignores email signatures, etc.)
         doc = parser.parse_lines(email.TextBody)
-        # Run semantic validation (reducer checks hashtag context, forward refs, zero ratios)
-        reducer.process_document(doc, user_email=email.From)
-        logger.info(f"Successfully parsed email from {email.From}")
+        # Check if document has any actual statements (not just None)
+        has_dsl_commands = any(s is not None for s in doc.statements)
+
+        if has_dsl_commands:
+            # Run semantic validation (reducer checks hashtag context, forward refs, zero ratios)
+            reducer.process_document(doc, user_email=email.From)
+            logger.info(f"Successfully parsed email from {email.From}")
+        else:
+            logger.info(f"Email from {email.From} contains no DSL commands")
     except (LarkError, ParseError) as e:
         # Parsing or semantic validation failed
         parse_error_message = str(e)
@@ -281,13 +350,18 @@ async def postmark_webhook(email: PostmarkInboundEmail):
 
     # Determine reply body based on parse result
     if parse_error_message:
-        # Parse failed - get LLM explanation
+        # Case 1: Parse failed - get LLM explanation
         logger.info(f"Getting LLM explanation for parse error from {email.From}")
-        reply_body = await explain_parse_error(email.TextBody, parse_error_message, GRAMMAR_DOC)
-        reply_body = f"⚠️ Your email couldn't be parsed:\n\n{reply_body}\n\n---\nOriginal email:\n{build_reply_body(email.TextBody)}"
+        explanation = await explain_parse_error(email.TextBody, parse_error_message, GRAMMAR_DOC)
+        quoted = "\n".join(f"> {line}" for line in email.TextBody.splitlines())
+        reply_body = f"⚠️ Your email couldn't be parsed:\n\n{explanation}\n\n---\nOriginal email:\n\n{quoted}"
+    elif not has_dsl_commands:
+        # Case 2: No DSL commands - respond naturally
+        logger.info(f"Responding to natural language query from {email.From}")
+        reply_body = await respond_to_natural_language(email.TextBody, GRAMMAR_DOC)
     else:
-        # Parse succeeded - send success confirmation
-        reply_body = f"✅ Your email was successfully processed!\n\n{build_reply_body(email.TextBody)}"
+        # Case 3: Valid DSL - send success confirmation
+        reply_body = "✅ Your email was successfully processed!"
 
     postmark.emails.send(
         From=reply_from,
