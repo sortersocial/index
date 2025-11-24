@@ -123,42 +123,42 @@ EmailDSL Grammar:
 
 # = hashtag (creates category context)
 : = attribute (sets comparison dimension)
-+ = item title (creates or references an item)
+- = item title (creates or references an item)
 
 Basic Structure:
 #hashtag-name
-+item-title { optional body text }
+-item-title { optional body text }
 
 Votes (pairwise comparisons):
-+item1 10:1 +item2    (explicit ratio - item1 is 10x better)
-+item1 > +item2       (clearly better, 2:1 ratio)
-+item1 < +item2       (clearly worse, 1:2 ratio)
-+item1 = +item2       (equal preference, 1:1 ratio)
+-item1 10:1 -item2    (explicit ratio - item1 is 10x better)
+-item1 > -item2       (clearly better, 2:1 ratio)
+-item1 < -item2       (clearly worse, 1:2 ratio)
+-item1 = -item2       (equal preference, 1:1 ratio)
 
 Attributes (set voting context):
 :difficulty
-+item1 > +item2       (this vote is about difficulty)
+-item1 > -item2       (this vote is about difficulty)
 
 Bodies (with nested braces support):
-+item { single line body }
-+item {
+-item { single line body }
+-item {
   multi-line body
   with multiple lines
 }
-+item {{ body with { nested } braces }}
+-item {{ body with { nested } braces }}
 
 Rules:
 - Items must be under a hashtag (use #hashtag first)
 - Votes require both items to exist first
-- Lines starting with #:+@ are parsed, others ignored
+- Lines starting with #:-@ are parsed, others ignored
 - No zero ratios allowed (breaks ranking algorithm)
 
 Example:
 #ideas
-+write-parser { Build the EmailDSL parser }
-+fix-auth { Fix authentication bug }
+-write-parser { Build the EmailDSL parser }
+-fix-auth { Fix authentication bug }
 :difficulty
-+write-parser > +fix-auth
+-write-parser > -fix-auth
 """
 
 
