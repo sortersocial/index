@@ -68,11 +68,11 @@ Sent from my iPhone"""
         assert len(doc.statements) == 2
         assert "{ nested }" in doc.statements[1].body
 
-    def test_unbalanced_brace_in_string_fails(self, parser):
-        """KNOWN BUG: Unbalanced brace in string literal breaks depth tracking.
+    def test_unbalanced_brace_in_string_now_works(self, parser):
+        """FIXED: Masking approach handles unbalanced braces in strings.
 
-        This is a documented limitation of the character-counting approach.
-        The brace counter doesn't understand semantic context (strings).
+        The old brace-counting approach failed here, but the new masking
+        approach correctly protects the body content before filtering.
         """
         text = """#code
 -snippet {{
@@ -81,16 +81,14 @@ Sent from my iPhone"""
 This should be noise
 -item2"""
 
-        # This WILL fail because depth tracking gets confused
-        with pytest.raises(Exception) as exc_info:
-            parser.parse_lines(text)
+        # This now WORKS! Masking protects the body, filters noise
+        doc = parser.parse_lines(text)
+        assert len(doc.statements) == 3  # hashtag, snippet, item2
+        assert doc.statements[1].body  # Body is preserved
+        assert 'printf' in doc.statements[1].body
 
-        # The error happens because "This should be noise" gets included
-        # as part of the body text, breaking the parse
-        assert "Unexpected token" in str(exc_info.value)
-
-    def test_unbalanced_brace_in_comment_fails(self, parser):
-        """KNOWN BUG: Unbalanced brace in comment breaks depth tracking."""
+    def test_unbalanced_brace_in_comment_now_works(self, parser):
+        """FIXED: Masking approach handles unbalanced braces in comments."""
         text = """#code
 -snippet {{
   // Comment with opening brace: {
@@ -98,11 +96,10 @@ This should be noise
 }}
 Noise after"""
 
-        # This WILL fail for the same reason as strings
-        with pytest.raises(Exception) as exc_info:
-            parser.parse_lines(text)
-
-        assert "Unexpected token" in str(exc_info.value)
+        # This now WORKS too!
+        doc = parser.parse_lines(text)
+        assert len(doc.statements) == 2  # hashtag, snippet
+        assert '// Comment' in doc.statements[1].body
 
     def test_no_noise_after_unbalanced_works(self, parser):
         """Even with unbalanced braces, works if no noise follows.

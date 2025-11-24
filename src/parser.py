@@ -3,10 +3,11 @@
 Parses email-based submissions with hashtags, items, votes, and attributes.
 """
 
+import uuid
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Dict
 
-from lark import Lark, Transformer, v_args
+from lark import Lark, Transformer
 
 
 # AST Node Definitions
@@ -201,6 +202,96 @@ class EmailDSLTransformer(Transformer):
         return str(body_token)
 
 
+class BlockMasker:
+    """Helper to mask balanced blocks to protect them during filtering."""
+
+    def __init__(self):
+        self.replacements: Dict[str, str] = {}
+
+    def mask(self, text: str, open_marker: str, close_marker: str) -> str:
+        """Replace outermost balanced blocks with tokens.
+
+        Handles:
+        1. Toggle markers (e.g. ``` ... ``` where open == close)
+        2. Nested markers (e.g. { ... { ... } ... } where open != close)
+        """
+        if not text:
+            return text
+
+        result_parts = []
+        current_idx = 0
+        i = 0
+        depth = 0
+        start_idx = -1
+
+        is_toggle = (open_marker == close_marker)
+        open_len = len(open_marker)
+        close_len = len(close_marker)
+
+        while i < len(text):
+            # Check for close marker first (if we are inside a block)
+            # For toggle markers, this is the same as open, so we check depth
+            if depth > 0 and text.startswith(close_marker, i):
+                if is_toggle:
+                    depth = 0 # Toggle off
+                else:
+                    depth -= 1
+
+                i += close_len
+
+                if depth == 0:
+                    # Found end of outermost block
+                    original_block = text[start_idx:i]
+                    token = f"__BLOCK_{uuid.uuid4().hex[:8]}__"
+                    self.replacements[token] = original_block
+                    result_parts.append(token)
+                    current_idx = i
+                continue
+
+            # Check for open marker
+            if text.startswith(open_marker, i):
+                if depth == 0:
+                    # Start of a new outermost block
+                    result_parts.append(text[current_idx:i])
+                    start_idx = i
+
+                if is_toggle:
+                    if depth == 0: depth = 1 # Toggle on
+                else:
+                    depth += 1
+
+                i += open_len
+                continue
+
+            i += 1
+
+        # Append remaining text
+        result_parts.append(text[current_idx:])
+
+        # If we have unbalanced markers at the end, the string just stays as is
+        # (effectively implicit closing or error caught later by parser)
+        return "".join(result_parts)
+
+    def unmask(self, text: str) -> str:
+        """Recursively restore all tokens in the text."""
+        if not text:
+            return text
+
+        # We loop until no more tokens are found to handle potential nesting
+        # (though our current logic masks outermost, so one pass usually works)
+        # However, line filtering might have joined tokens, so simple replace is safe.
+        result = text
+        while True:
+            replaced_count = 0
+            for token, original in self.replacements.items():
+                if token in result:
+                    result = result.replace(token, original)
+                    replaced_count += 1
+            if replaced_count == 0:
+                break
+        return result
+
+
 class EmailDSLParser:
     """Parser for EmailDSL."""
 
@@ -208,53 +299,49 @@ class EmailDSLParser:
         self.parser = Lark(
             GRAMMAR,
             parser="lalr",
-            # Don't use embedded transformer with lalr when testing
         )
         self.transformer = EmailDSLTransformer()
 
     def parse(self, text: str) -> Document:
-        """Parse EmailDSL text into AST.
-
-        Args:
-            text: EmailDSL source text
-
-        Returns:
-            Document with parsed statements
-        """
+        """Parse EmailDSL text into AST."""
         tree = self.parser.parse(text)
         return self.transformer.transform(tree)
 
     def parse_lines(self, text: str) -> Document:
-        """Parse EmailDSL with line-based filtering.
+        """Parse EmailDSL with stateless line-based filtering.
 
-        Only parses lines that start with special characters,
-        ignoring noise like email signatures. Keeps all lines
-        when inside a body (between braces).
-
-        Args:
-            text: EmailDSL source text
-
-        Returns:
-            Document with parsed statements
+        Strategy:
+        1. Mask hierarchy of blocks (Code -> Double Brace -> Single Brace).
+           This hides body content inside safe tokens like __BLOCK_XYZ__.
+        2. Filter lines. Since bodies are now single tokens on the definition line,
+           we can simply check if the line starts with a DSL character.
+           Noise lines (signatures, greetings) won't have tokens and won't start with chars.
+        3. Unmask text to restore original bodies.
+        4. Parse.
         """
-        filtered_lines = []
-        brace_depth = 0
+        masker = BlockMasker()
 
+        # 1. Hierarchy of Protection
+        # Protect code blocks first (strongest)
+        text = masker.mask(text, "```", "```")
+        # Protect double braces next
+        text = masker.mask(text, "{{", "}}")
+        # Protect standard bodies last (weakest)
+        text = masker.mask(text, "{", "}")
+
+        # 2. Stateless Filter
+        filtered_lines = []
         for line in text.split("\n"):
             stripped = line.lstrip()
-
-            # Count braces to track when we're inside a body
-            open_braces = line.count("{")
-            close_braces = line.count("}")
-
-            # Keep line if it starts with special char OR we're inside a body
-            if brace_depth > 0 or (stripped and stripped[0] in "#:-!@"):
+            # If a line starts with a command char, keep it.
+            # Because bodies are masked into tokens on these lines, we keep the bodies too.
+            if stripped and stripped[0] in "#:-!@":
                 filtered_lines.append(line)
 
-            # Update brace depth after processing the line
-            brace_depth += open_braces - close_braces
-            # Ensure brace_depth doesn't go negative
-            brace_depth = max(0, brace_depth)
-
         filtered_text = "\n".join(filtered_lines)
-        return self.parse(filtered_text)
+
+        # 3. Unmask (Restore bodies)
+        restored_text = masker.unmask(filtered_text)
+
+        # 4. Parse
+        return self.parse(restored_text)
