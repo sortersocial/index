@@ -428,14 +428,16 @@ async def get_email(filename: str):
 @app.get("/hashtag/{hashtag_name}", response_class=HTMLResponse)
 async def view_hashtag(request: Request, hashtag_name: str):
     """View items under a specific hashtag, ranked"""
+    from src.reducer import State
+
     # Acquire lock for consistent read of reducer state
     async with reducer_lock:
         # Get all items under this hashtag
-        items_in_hashtag = [
-            (title, record)
+        items_in_hashtag = {
+            title: record
             for title, record in reducer.state.items.items()
             if hashtag_name in record.hashtags
-        ]
+        }
 
         if not items_in_hashtag:
             return templates.TemplateResponse("hashtag.html", {
@@ -445,37 +447,31 @@ async def view_hashtag(request: Request, hashtag_name: str):
                 "rankings": []
             })
 
-        # Get global rankings and filter to this hashtag
-        all_rankings = compute_rankings_from_state(reducer.state)
-
-        # Filter rankings to only items in this hashtag
-        hashtag_item_titles = {title for title, _ in items_in_hashtag}
-        filtered_rankings = [
-            (title, score, rank) for title, score, rank in all_rankings
-            if title in hashtag_item_titles
+        # Filter votes to only votes between items in this hashtag
+        hashtag_item_titles = set(items_in_hashtag.keys())
+        hashtag_votes = [
+            vote for vote in reducer.state.votes
+            if vote.item1 in hashtag_item_titles and vote.item2 in hashtag_item_titles
         ]
 
-        # Re-number ranks within hashtag context (1, 2, 3... not global ranks)
-        filtered_rankings_renumbered = [
-            (title, score, idx + 1)
-            for idx, (title, score, _) in enumerate(filtered_rankings)
-        ]
+        # Create a filtered state with only this hashtag's items and votes
+        filtered_state = State(
+            items=items_in_hashtag,
+            votes=hashtag_votes
+        )
 
-        rank_map = {title: (rank, score) for title, score, rank in filtered_rankings_renumbered}
+        # Compute rankings ONLY on this hashtag's data
+        hashtag_rankings = compute_rankings_from_state(filtered_state)
+
+        # Build rank map
+        rank_map = {title: (rank, score) for title, score, rank in hashtag_rankings}
 
         # Sort items by their rank
         items_with_ranks = [
             (title, record, rank_map.get(title, (999999, 0.0)))
-            for title, record in items_in_hashtag
+            for title, record in items_in_hashtag.items()
         ]
         items_with_ranks.sort(key=lambda x: x[2][0])  # Sort by rank
-
-        # Get votes for items in this hashtag
-        hashtag_votes = [
-            vote for vote in reducer.state.votes
-            if (vote.item1 in [title for title, _, _ in items_with_ranks] and
-                vote.item2 in [title for title, _, _ in items_with_ranks])
-        ]
 
     return templates.TemplateResponse("hashtag.html", {
         "request": request,
@@ -508,6 +504,8 @@ async def postmark_webhook(email: PostmarkInboundEmail):
         has_dsl_commands = any(s is not None for s in doc.statements)
 
         if has_dsl_commands:
+            from src.reducer import State
+
             # Extract hashtags mentioned in this email
             mentioned_hashtags = {
                 stmt.name for stmt in doc.statements
@@ -519,26 +517,40 @@ async def postmark_webhook(email: PostmarkInboundEmail):
 
             # Acquire lock to prevent concurrent modifications to reducer state
             async with reducer_lock:
-                # Compute rankings BEFORE processing this email
-                rankings_before = compute_rankings_from_state(reducer.state)
+                # Filter to items in mentioned hashtags BEFORE processing
+                if mentioned_hashtags:
+                    before_items = {
+                        title: record
+                        for title, record in reducer.state.items.items()
+                        if any(tag in record.hashtags for tag in mentioned_hashtags)
+                    }
+                    before_votes = [
+                        vote for vote in reducer.state.votes
+                        if vote.item1 in before_items and vote.item2 in before_items
+                    ]
+                    before_state = State(items=before_items, votes=before_votes)
+                    rankings_before = compute_rankings_from_state(before_state)
+                else:
+                    rankings_before = []
 
                 # Run semantic validation (reducer checks hashtag context, forward refs, zero ratios)
                 reducer.process_document(doc, user_email=email.From, timestamp=str(current_timestamp))
 
-                # Compute rankings AFTER processing this email
-                rankings_after = compute_rankings_from_state(reducer.state)
-
-            # Filter rankings to only show items from mentioned hashtags
-            if mentioned_hashtags:
-                rankings_before = [
-                    (title, score, rank) for title, score, rank in rankings_before
-                    if any(tag in reducer.state.items[title].hashtags for tag in mentioned_hashtags)
-                ] if rankings_before else []
-
-                rankings_after = [
-                    (title, score, rank) for title, score, rank in rankings_after
-                    if any(tag in reducer.state.items[title].hashtags for tag in mentioned_hashtags)
-                ]
+                # Filter to items in mentioned hashtags AFTER processing
+                if mentioned_hashtags:
+                    after_items = {
+                        title: record
+                        for title, record in reducer.state.items.items()
+                        if any(tag in record.hashtags for tag in mentioned_hashtags)
+                    }
+                    after_votes = [
+                        vote for vote in reducer.state.votes
+                        if vote.item1 in after_items and vote.item2 in after_items
+                    ]
+                    after_state = State(items=after_items, votes=after_votes)
+                    rankings_after = compute_rankings_from_state(after_state)
+                else:
+                    rankings_after = []
 
             # 2. Persist to Disk (Append-Only Log) - only after successful validation
             # Use the same timestamp for consistency
