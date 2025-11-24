@@ -192,7 +192,7 @@ class TestFullDocuments:
 """
         doc = parser.parse(text)
         statements = [s for s in doc.statements if s is not None]
-        assert len(statements) == 4
+        assert len(statements) == 5  # hashtag, 2 items, attribute_decl list, vote
 
     def test_document_with_noise(self, parser):
         text = """

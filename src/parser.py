@@ -59,17 +59,16 @@ class Document:
 
 # Lark Grammar for EmailDSL
 GRAMMAR = r"""
-start: statement*
+start: _NL* (statement _NL+)* statement?
 
 ?statement: hashtag
           | vote           // Try vote before item to avoid ambiguity
           | item
           | attribute_decl
           | email_address
-          | text_line
 
 hashtag: "#" hashtag_name
-hashtag_name: WORD+
+hashtag_name: ITEM_NAME
 
 item: "+" item_ref body?
 
@@ -86,54 +85,60 @@ attribute: ":" WORD
 
 email_address: EMAIL
 
-body: BODY_DOUBLE
-    | BODY_SINGLE
+body: LBRACE LBRACE body_text_double RBRACE RBRACE  -> body_double
+    | LBRACE body_text_single RBRACE                  -> body_single
+
+body_text_double: BODY_TEXT_DOUBLE
+body_text_single: BODY_TEXT_SINGLE
 
 item_ref: ITEM_NAME
-
-text_line: TEXT_LINE
 
 // Terminals - order matters for priority
 EMAIL: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/
 
-// Body with double braces: {{ text with {braces} }} - must come before BODY_SINGLE
-BODY_DOUBLE.2: /\{\{(.|\n)*?\}\}/
+// Braces
+LBRACE: "{"
+RBRACE: "}"
 
-// Body with single braces: { text } - matches anything except { or }
-BODY_SINGLE.1: /\{[^{}]*\}/
+// Body text for double braces - can contain single braces
+// Use high priority to match before other terminals
+BODY_TEXT_DOUBLE.10: /(.|\n)+?(?=\}\})/
+
+// Body text for single braces - cannot contain braces
+BODY_TEXT_SINGLE.5: /[^{}]+/
 
 ITEM_NAME: /[a-zA-Z0-9_]+([-][a-zA-Z0-9_]+)*/
 NUMBER: /[0-9]+/
 WORD: /[a-zA-Z0-9_]+/
 
-// Text lines that don't start with special chars
-TEXT_LINE: /[^#:+!@\n][^\n]*/
-
-%import common.WS
-%ignore WS
+%import common.NEWLINE -> _NL
+%import common.WS_INLINE
+%ignore WS_INLINE
 """
 
 
-@v_args(inline=True)
 class EmailDSLTransformer(Transformer):
     """Transform parse tree into AST nodes."""
 
-    def start(self, *statements):
-        return Document(statements=list(statements))
+    def start(self, children):
+        # Filter out newlines and None values
+        statements = [c for c in children if c is not None and not str(c).isspace()]
+        return Document(statements=statements)
 
-    def hashtag(self, name):
-        return Hashtag(name=str(name))
+    def hashtag(self, children):
+        return Hashtag(name=str(children[0]))
 
-    def hashtag_name(self, *words):
+    def hashtag_name(self, words):
         return "".join(str(w) for w in words)
 
-    def item(self, title, body=None):
-        body_text = self._extract_body(body) if body else None
-        return Item(title=str(title), body=body_text)
+    def item(self, children):
+        title = str(children[0])
+        body = self._extract_body(children[1]) if len(children) > 1 else None
+        return Item(title=title, body=body)
 
-    def vote(self, *args):
+    def vote(self, children):
         # Filter out vote_prefix if present
-        args = [a for a in args if a is not None and str(a) != "vote"]
+        args = [c for c in children if c is not None]
 
         item1 = str(args[0])
         comparison = args[1]
@@ -150,54 +155,57 @@ class EmailDSLTransformer(Transformer):
             explanation=explanation,
         )
 
-    def vote_prefix(self, _):
+    def vote_prefix(self, children):
         return None  # Filter this out
 
-    def ratio_comparison(self, left, right):
-        return (int(left), int(right))
+    def ratio_comparison(self, children):
+        return (int(children[0]), int(children[1]))
 
-    def greater_comparison(self, left, right):
-        return (int(left), int(right))
+    def greater_comparison(self, children):
+        return (int(children[0]), int(children[1]))
 
-    def equal_comparison(self, left, right):
-        return (int(left), int(right))
+    def equal_comparison(self, children):
+        return (int(children[0]), int(children[1]))
 
-    def simple_greater(self):
+    def simple_greater(self, children):
         return (1, 0)  # > means infinitely better, represent as 1:0
 
-    def attribute_decl(self, *attributes):
+    def attribute_decl(self, attributes):
         # Return list of attributes
         return [attr for attr in attributes]
 
-    def attribute(self, name):
-        return Attribute(name=str(name))
+    def attribute(self, children):
+        return Attribute(name=str(children[0]))
 
-    def email_address(self, address):
-        return Email(address=str(address))
+    def email_address(self, children):
+        return Email(address=str(children[0]))
 
-    def item_ref(self, name):
-        return str(name)
+    def item_ref(self, children):
+        return str(children[0])
 
-    def text_line(self, text):
-        # Return None to filter out text lines
-        return None
+    def body_single(self, children):
+        """Handle single brace body: { text }"""
+        # children[0] is LBRACE, children[1] is body_text_single, children[2] is RBRACE
+        return str(children[1]).strip()
+
+    def body_double(self, children):
+        """Handle double brace body: {{ text }}"""
+        # children[0:2] are LBRACEs, children[2] is body_text_double, children[3:5] are RBRACEs
+        return str(children[2]).strip()
+
+    def body_text_single(self, children):
+        return str(children[0])
+
+    def body_text_double(self, children):
+        return str(children[0])
 
     def _extract_body(self, body_token):
         """Extract text from body token, removing delimiters."""
         if body_token is None:
             return None
 
-        text = str(body_token)
-
-        # Handle {{ }} delimiters
-        if text.startswith("{{") and text.endswith("}}"):
-            return text[2:-2].strip()
-
-        # Handle { } delimiters
-        if text.startswith("{") and text.endswith("}"):
-            return text[1:-1].strip()
-
-        return text.strip()
+        # body_token is already processed by body_single/body_double
+        return str(body_token)
 
 
 class EmailDSLParser:
@@ -207,8 +215,9 @@ class EmailDSLParser:
         self.parser = Lark(
             GRAMMAR,
             parser="lalr",
-            transformer=EmailDSLTransformer(),
+            # Don't use embedded transformer with lalr when testing
         )
+        self.transformer = EmailDSLTransformer()
 
     def parse(self, text: str) -> Document:
         """Parse EmailDSL text into AST.
@@ -220,7 +229,7 @@ class EmailDSLParser:
             Document with parsed statements
         """
         tree = self.parser.parse(text)
-        return tree
+        return self.transformer.transform(tree)
 
     def parse_lines(self, text: str) -> Document:
         """Parse EmailDSL with line-based filtering.
