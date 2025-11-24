@@ -6,8 +6,12 @@ from typing import Optional, List
 from contextlib import asynccontextmanager
 import logging
 import os
+import httpx
 from postmarker.core import PostmarkClient
 from src import storage
+from src.parser import EmailDSLParser
+from src.reducer import Reducer, ParseError
+from lark.exceptions import LarkError
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -56,6 +60,119 @@ postmark_token = os.getenv("POSTMARK_SERVER_TOKEN")
 postmark = PostmarkClient(server_token=postmark_token) if postmark_token else None
 if not postmark:
     logger.warning("POSTMARK_SERVER_TOKEN not set - email sending disabled")
+
+# Initialize parser and reducer
+parser = EmailDSLParser()
+reducer = Reducer()
+
+# OpenRouter configuration
+OPENROUTER_API_KEY = "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"
+OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+# EmailDSL Grammar Documentation
+GRAMMAR_DOC = """
+EmailDSL Grammar:
+
+# = hashtag (creates category context)
+: = attribute (sets comparison dimension)
++ = item title (creates or references an item)
+
+Basic Structure:
+#hashtag-name
++item-title { optional body text }
+
+Votes (pairwise comparisons):
++item1 10:1 +item2    (explicit ratio - item1 is 10x better)
++item1 > +item2       (clearly better, 2:1 ratio)
++item1 < +item2       (clearly worse, 1:2 ratio)
++item1 = +item2       (equal preference, 1:1 ratio)
+
+Attributes (set voting context):
+:difficulty
++item1 > +item2       (this vote is about difficulty)
+
+Bodies (with nested braces support):
++item { single line body }
++item {
+  multi-line body
+  with multiple lines
+}
++item {{ body with { nested } braces }}
+
+Rules:
+- Items must be under a hashtag (use #hashtag first)
+- Votes require both items to exist first
+- Lines starting with #:+@ are parsed, others ignored
+- No zero ratios allowed (breaks ranking algorithm)
+
+Example:
+#ideas
++write-parser { Build the EmailDSL parser }
++fix-auth { Fix authentication bug }
+:difficulty
++write-parser > +fix-auth
+"""
+
+
+async def explain_parse_error(user_email: str, error_message: str, grammar: str) -> str:
+    """
+    Use OpenRouter (Haiku 4.5) to explain a parse error in friendly terms.
+
+    Args:
+        user_email: The email body that failed to parse
+        error_message: The error message from the parser
+        grammar: The EmailDSL grammar documentation
+
+    Returns:
+        A friendly explanation of what went wrong
+    """
+    prompt = f"""You are helping a user debug their EmailDSL submission. They sent an email that failed to parse.
+
+Here is the EmailDSL grammar:
+{grammar}
+
+Here is the email they sent:
+```
+{user_email}
+```
+
+Here is the error message:
+```
+{error_message}
+```
+
+Please explain in friendly, clear terms:
+1. What they did wrong
+2. How to fix it
+3. Show a corrected example
+
+Be concise and helpful. Assume they're smart but new to the syntax."""
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                OPENROUTER_API_URL,
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "anthropic/claude-3.5-haiku",
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": prompt,
+                        }
+                    ],
+                },
+            )
+            response.raise_for_status()
+            result = response.json()
+            return result["choices"][0]["message"]["content"]
+    except Exception as e:
+        logger.error(f"OpenRouter API error: {e}")
+        # Fallback to just the raw error
+        return f"Parse error: {error_message}\n\nPlease check the EmailDSL syntax and try again."
 
 # Postmark Inbound Email Schema
 class PostmarkAttachment(BaseModel):
@@ -125,7 +242,20 @@ async def postmark_webhook(email: PostmarkInboundEmail):
     # Update local state immediately so we don't need to restart to see changes
     GLOBAL_STATE["email_count"] += 1
 
-    # 2. Send Auto-Reply
+    # 2. Parse and validate the email
+    parse_error_message = None
+    try:
+        # Parse with line filtering (ignores email signatures, etc.)
+        doc = parser.parse_lines(email.TextBody)
+        # Run semantic validation (reducer checks hashtag context, forward refs, zero ratios)
+        reducer.process_document(doc, user_email=email.From)
+        logger.info(f"Successfully parsed email from {email.From}")
+    except (LarkError, ParseError) as e:
+        # Parsing or semantic validation failed
+        parse_error_message = str(e)
+        logger.warning(f"Parse error from {email.From}: {parse_error_message}")
+
+    # 3. Send Auto-Reply
     if not postmark:
         return JSONResponse(
             status_code=200,
@@ -146,16 +276,26 @@ async def postmark_webhook(email: PostmarkInboundEmail):
     reply_references = f"{incoming_references} {incoming_message_id}" if incoming_references else incoming_message_id
     subject = email.Subject if email.Subject.startswith("Re:") else f"Re: {email.Subject}"
     reply_from = email.To  # Reply from the specific address (e.g. random-slug@sorter.social)
-    
+
+    # Determine reply body based on parse result
+    if parse_error_message:
+        # Parse failed - get LLM explanation
+        logger.info(f"Getting LLM explanation for parse error from {email.From}")
+        reply_body = await explain_parse_error(email.TextBody, parse_error_message, GRAMMAR_DOC)
+        reply_body = f"⚠️ Your email couldn't be parsed:\n\n{reply_body}\n\n---\nOriginal email:\n{build_reply_body(email.TextBody)}"
+    else:
+        # Parse succeeded - send success confirmation
+        reply_body = f"✅ Your email was successfully processed!\n\n{build_reply_body(email.TextBody)}"
+
     postmark.emails.send(
         From=reply_from,
         To=email.From,
         Subject=subject,
-        TextBody=build_reply_body(email.TextBody),
-        Headers={
-            "In-Reply-To": incoming_message_id,
-            "References": reply_references
-        },
+        TextBody=reply_body,
+        Headers=[
+            {"Name": "In-Reply-To", "Value": incoming_message_id},
+            {"Name": "References", "Value": reply_references}
+        ],
         TrackOpens=False,
         TrackLinks="None"
     )
