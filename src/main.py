@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, List
 from contextlib import asynccontextmanager
@@ -90,6 +91,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 templates = Jinja2Templates(directory="src/templates")
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="src/static"), name="static")
 
 # Add custom filters to Jinja2
 templates.env.filters["relative_time"] = format_relative_time

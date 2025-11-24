@@ -1,0 +1,47 @@
+/* Base styles shared across all pages */
+body {
+    font-family: system-ui, -apple-system, sans-serif;
+    max-width: 800px;
+    margin: 40px auto;
+    padding: 0 20px;
+    line-height: 1.6;
+}
+
+h1 { 
+    margin-bottom: 0.5em; 
+}
+
+h2 { 
+    margin-top: 2em; 
+    margin-bottom: 1em;
+    font-size: 1.5em;
+}
+
+.stats { 
+    color: #666; 
+    margin-bottom: 2em; 
+}
+
+.back-link { 
+    margin-bottom: 2em; 
+}
+
+.no-items {
+    color: #666;
+    font-style: italic;
+}
+
+/* Mobile responsive base styles */
+@media (max-width: 640px) {
+    body {
+        margin: 20px auto;
+        padding: 0 15px;
+    }
+    h1 {
+        font-size: 1.5em;
+    }
+    h2 {
+        font-size: 1.3em;
+    }
+}
+
