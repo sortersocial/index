@@ -11,6 +11,7 @@ from postmarker.core import PostmarkClient
 from src import storage
 from src.parser import EmailDSLParser
 from src.reducer import Reducer, ParseError
+from src.rank import compute_rankings_from_state
 from lark.exceptions import LarkError
 
 # Configure logging
@@ -177,6 +178,56 @@ Be concise and helpful. Assume they're smart but new to the syntax."""
         return f"Parse error: {error_message}\n\nPlease check the EmailDSL syntax and try again."
 
 
+def format_rankings_with_deltas(
+    rankings_before: List[tuple],
+    rankings_after: List[tuple],
+    max_items: int = 100
+) -> str:
+    """
+    Format rankings showing before/after with deltas.
+
+    Args:
+        rankings_before: List of (title, score, rank) before processing
+        rankings_after: List of (title, score, rank) after processing
+        max_items: Maximum number of items to show
+
+    Returns:
+        Formatted string showing rankings with deltas
+    """
+    if not rankings_after:
+        return "No items to rank yet."
+
+    # Build a map of title -> old rank
+    old_ranks = {title: rank for title, _, rank in rankings_before} if rankings_before else {}
+
+    # Format output
+    lines = ["## Rankings (Top {})".format(min(len(rankings_after), max_items)), ""]
+
+    for title, score, new_rank in rankings_after[:max_items]:
+        old_rank = old_ranks.get(title)
+
+        if old_rank is None:
+            # New item
+            delta_str = " (new)"
+        elif old_rank == new_rank:
+            # No change
+            delta_str = ""
+        else:
+            # Rank changed (note: lower rank number = better, so +1 means moved up)
+            delta = old_rank - new_rank
+            if delta > 0:
+                delta_str = f" (+{delta})"
+            else:
+                delta_str = f" ({delta})"
+
+        lines.append(f"{new_rank}. {title}{delta_str}")
+
+    if len(rankings_after) > max_items:
+        lines.append(f"\n... and {len(rankings_after) - max_items} more items")
+
+    return "\n".join(lines)
+
+
 async def respond_to_natural_language(user_message: str, grammar: str) -> str:
     """
     Respond to natural language queries about the system.
@@ -308,6 +359,8 @@ async def postmark_webhook(email: PostmarkInboundEmail):
     parse_error_message = None
     doc = None
     has_dsl_commands = False
+    rankings_before = None
+    rankings_after = None
 
     try:
         # Parse with line filtering (ignores email signatures, etc.)
@@ -316,8 +369,15 @@ async def postmark_webhook(email: PostmarkInboundEmail):
         has_dsl_commands = any(s is not None for s in doc.statements)
 
         if has_dsl_commands:
+            # Compute rankings BEFORE processing this email
+            rankings_before = compute_rankings_from_state(reducer.state)
+
             # Run semantic validation (reducer checks hashtag context, forward refs, zero ratios)
             reducer.process_document(doc, user_email=email.From)
+
+            # Compute rankings AFTER processing this email
+            rankings_after = compute_rankings_from_state(reducer.state)
+
             logger.info(f"Successfully parsed email from {email.From}")
         else:
             logger.info(f"Email from {email.From} contains no DSL commands")
@@ -360,8 +420,9 @@ async def postmark_webhook(email: PostmarkInboundEmail):
         logger.info(f"Responding to natural language query from {email.From}")
         reply_body = await respond_to_natural_language(email.TextBody, GRAMMAR_DOC)
     else:
-        # Case 3: Valid DSL - send success confirmation
-        reply_body = "✅ Your email was successfully processed!"
+        # Case 3: Valid DSL - send success confirmation with rankings
+        rankings_text = format_rankings_with_deltas(rankings_before, rankings_after)
+        reply_body = f"✅ Your email was successfully processed!\n\n{rankings_text}"
 
     postmark.emails.send(
         From=reply_from,

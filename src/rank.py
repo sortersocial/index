@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import numpy as np
 import scipy, random, itertools, sys
+from typing import List, Tuple, Optional
 
 # For analysis purposes we track the number of iterations until convergence.
 global total_iters
@@ -110,6 +111,62 @@ def run_test(n, extra_comparisons):
         # The scaled score of item i is expected to be i + 1.
         scaled_score = scores[i] * n * (n + 1) / 2
         print(f'{i}: {scores[i]:.4f} ({scaled_score:.4f})')
+
+
+def compute_rankings_from_state(state) -> List[Tuple[str, float, int]]:
+    """
+    Compute rankings from a reducer State object.
+
+    Args:
+        state: A State object from the reducer with items and votes
+
+    Returns:
+        List of (item_title, score, rank) tuples sorted by rank (best first)
+        Returns empty list if no items or no votes
+    """
+    from src.reducer import State
+
+    if not state.items:
+        return []
+
+    # Build mapping from item titles to indices
+    item_titles = sorted(state.items.keys())
+    title_to_idx = {title: i for i, title in enumerate(item_titles)}
+    n = len(item_titles)
+
+    # Build comparison matrix from votes
+    A = np.zeros((n, n))
+    for vote in state.votes:
+        i = title_to_idx[vote.item1]
+        j = title_to_idx[vote.item2]
+        # Vote says item1 is better than item2 with ratio_left:ratio_right
+        # So A[j,i] (how much i is preferred to j) gets ratio_left
+        # And A[i,j] (how much j is preferred to i) gets ratio_right
+        A[j, i] += vote.ratio_left
+        A[i, j] += vote.ratio_right
+
+    # Check if we have any votes
+    if not state.votes:
+        # No votes - all items tie
+        return [(title, 1.0 / n, 1) for title in item_titles]
+
+    # Compute rankings
+    try:
+        scores = rank_centrality(A)
+    except Exception:
+        # If ranking fails (disconnected graph, etc), return items unranked
+        return [(title, 1.0 / n, 1) for title in item_titles]
+
+    # Sort by score (high to low) and assign ranks
+    sorted_indices = sorted(range(n), key=lambda i: scores[i], reverse=True)
+    results = []
+    for rank, idx in enumerate(sorted_indices, start=1):
+        title = item_titles[idx]
+        score = scores[idx]
+        results.append((title, score, rank))
+
+    return results
+
 
 # Example usage
 if __name__ == '__main__':
