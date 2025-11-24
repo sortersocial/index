@@ -99,9 +99,9 @@ def parse_email_file(content: str) -> Tuple[str, Optional[str], Optional[str]]:
     return (body, from_email, timestamp)
 
 
-def stream_history() -> Generator[Tuple[str, Optional[str], Optional[str]], None, None]:
+def stream_history() -> Generator[Tuple[str, Optional[str], Optional[str], str], None, None]:
     """
-    Yields (body, from_email, timestamp) for every .sorter file in the data directory,
+    Yields (body, from_email, timestamp, filename) for every .sorter file in the data directory,
     sorted by filename (which implies sorted by time due to prefix).
     """
     init_storage()
@@ -114,7 +114,8 @@ def stream_history() -> Generator[Tuple[str, Optional[str], Optional[str]], None
 
     for f in files:
         content = f.read_text(encoding="utf-8")
-        yield parse_email_file(content)
+        body, from_email, timestamp = parse_email_file(content)
+        yield (body, from_email, timestamp, f.name)
 
 
 def list_emails() -> List[Tuple[str, str, str, Optional[str]]]:

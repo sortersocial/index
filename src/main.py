@@ -87,14 +87,14 @@ async def lifespan(app: FastAPI):
     # Replay history
     count = 0
     errors = 0
-    for body, from_email, timestamp in storage.stream_history():
+    for body, from_email, timestamp, filename in storage.stream_history():
         count += 1
         try:
             # Parse and process each historical email
             doc = parser.parse_lines(body)
             if any(s is not None for s in doc.statements):
                 # Re-use the exact same logic as the webhook
-                reducer.process_document(doc, user_email=from_email, timestamp=timestamp)
+                reducer.process_document(doc, user_email=from_email, timestamp=timestamp, source_filename=filename)
         except Exception as e:
             errors += 1
             logger.error(f"Failed to replay email {count}: {e}")
