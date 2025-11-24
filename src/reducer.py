@@ -160,6 +160,13 @@ class Reducer:
                 "Items must be declared before voting."
             )
 
+        # Validate ratio doesn't contain 0 (breaks random walk)
+        if vote.ratio_left == 0 or vote.ratio_right == 0:
+            raise ParseError(
+                f"Vote ratio cannot contain 0 ({vote.ratio_left}:{vote.ratio_right}). "
+                "Zero ratios break the ranking algorithm's random walk. Use small numbers like 1:10 instead."
+            )
+
         # Record vote with current attribute context
         self.state.votes.append(
             VoteRecord(

@@ -75,11 +75,9 @@ item: "+" item_ref body?
 vote: "+" item_ref comparison "+" item_ref body?
 
 comparison: NUMBER ":" NUMBER   -> ratio_comparison
-          | NUMBER ">" NUMBER   -> greater_comparison
-          | NUMBER "<" NUMBER   -> less_comparison
-          | NUMBER "=" NUMBER   -> equal_comparison
           | ">"                 -> simple_greater
           | "<"                 -> simple_less
+          | "="                 -> simple_equal
 
 attribute_decl: attribute+
 attribute: ":" WORD
@@ -156,21 +154,14 @@ class EmailDSLTransformer(Transformer):
     def ratio_comparison(self, children):
         return (int(children[0]), int(children[1]))
 
-    def greater_comparison(self, children):
-        return (int(children[0]), int(children[1]))
-
-    def less_comparison(self, children):
-        # a < b means b is greater, so swap the ratio
-        return (int(children[1]), int(children[0]))
-
-    def equal_comparison(self, children):
-        return (int(children[0]), int(children[1]))
-
     def simple_greater(self, children):
-        return (1, 0)  # > means infinitely better, represent as 1:0
+        return (2, 1)  # > means clearly better, 2:1 ratio
 
     def simple_less(self, children):
-        return (0, 1)  # < means infinitely worse, represent as 0:1
+        return (1, 2)  # < means clearly worse, 1:2 ratio
+
+    def simple_equal(self, children):
+        return (1, 1)  # = means equal preference
 
     def attribute_decl(self, attributes):
         # Return list of attributes

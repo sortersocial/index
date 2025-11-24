@@ -88,23 +88,11 @@ class TestVotes:
         assert vote.ratio_left == 10
         assert vote.ratio_right == 1
 
-    def test_vote_greater_syntax(self, parser):
-        doc = parser.parse("+item1 5>2 +item2")
-        vote = doc.statements[0]
-        assert vote.ratio_left == 5
-        assert vote.ratio_right == 2
-
-    def test_vote_equal_syntax(self, parser):
-        doc = parser.parse("+item1 50=50 +item2")
-        vote = doc.statements[0]
-        assert vote.ratio_left == 50
-        assert vote.ratio_right == 50
-
     def test_vote_simple_greater(self, parser):
         doc = parser.parse("+item1 > +item2")
         vote = doc.statements[0]
-        assert vote.ratio_left == 1
-        assert vote.ratio_right == 0
+        assert vote.ratio_left == 2
+        assert vote.ratio_right == 1
 
     def test_vote_with_explanation(self, parser):
         doc = parser.parse("+item1 10:1 +item2 { item1 is much harder }")
@@ -323,20 +311,30 @@ void quicksort(int arr[], int low, int high) {
 class TestEdgeCases:
     """Test edge cases and corner scenarios."""
 
-    def test_less_than_operator(self, parser):
-        doc = parser.parse("+item1 5<10 +item2")
-        vote = doc.statements[0]
-        assert isinstance(vote, Vote)
-        # 5<10 means item2 is greater, so ratio should be (10, 5)
-        assert vote.ratio_left == 10
-        assert vote.ratio_right == 5
-
     def test_simple_less_than(self, parser):
         doc = parser.parse("+item1 < +item2")
         vote = doc.statements[0]
-        # < means item2 is infinitely better
-        assert vote.ratio_left == 0
+        # < means item2 is clearly better (2:1 ratio)
+        assert vote.ratio_left == 1
+        assert vote.ratio_right == 2
+
+    def test_simple_equal(self, parser):
+        doc = parser.parse("+item1 = +item2")
+        vote = doc.statements[0]
+        # = means equal preference
+        assert vote.ratio_left == 1
         assert vote.ratio_right == 1
+
+    def test_zero_ratio_rejected(self, parser, reducer):
+        # Zero ratios break the random walk algorithm
+        doc = parser.parse("""
+#ideas
++a { first }
++b { second }
++a 0:1 +b
+""")
+        with pytest.raises(ParseError, match="cannot contain 0"):
+            reducer.process_document(doc)
 
     def test_attribute_persists_across_votes(self, parser, reducer):
         doc = parser.parse("""
