@@ -12,6 +12,13 @@
     <p>Email anything to <a href="mailto:about@mail.sorter.social">about@mail.sorter.social</a> to get started.</p>
     <p class="stats">Emails processed: {{ count }}</p>
 
+    <div style="margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 4px;">
+        <a href="mailto:about@mail.sorter.social?subject=New Submission&body={{ ('#hashtag\n-item-name { description }')|urlencode }}"
+           style="display: inline-block; padding: 8px 16px; background: #007bff; color: white; text-decoration: none; border-radius: 4px;">
+            ➕ Quick Submit
+        </a>
+    </div>
+
     {% if hashtags %}
     <h2>Hashtags</h2>
     <ul class="email-list">
