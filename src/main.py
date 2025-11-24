@@ -436,13 +436,7 @@ async def postmark_webhook(email: PostmarkInboundEmail):
     """
     logger.info(f"Received email from {email.From} to {email.To}")
 
-    # 1. Persist to Disk (Append-Only Log)
-    # We use the TextBody as the source of truth for the parser
-    storage.save_email(email.Subject, email.TextBody, from_email=email.From)
-    # Update local state immediately so we don't need to restart to see changes
-    GLOBAL_STATE["email_count"] += 1
-
-    # 2. Parse and validate the email
+    # 1. Parse and validate the email first
     parse_error_message = None
     doc = None
     has_dsl_commands = False
@@ -467,7 +461,12 @@ async def postmark_webhook(email: PostmarkInboundEmail):
                 # Compute rankings AFTER processing this email
                 rankings_after = compute_rankings_from_state(reducer.state)
 
-            logger.info(f"Successfully parsed email from {email.From}")
+            # 2. Persist to Disk (Append-Only Log) - only after successful validation
+            # We use the TextBody as the source of truth for the parser
+            storage.save_email(email.Subject, email.TextBody, from_email=email.From)
+            GLOBAL_STATE["email_count"] += 1
+
+            logger.info(f"Successfully parsed and stored email from {email.From}")
         else:
             logger.info(f"Email from {email.From} contains no DSL commands")
     except (LarkError, ParseError) as e:
