@@ -35,7 +35,7 @@ def format_relative_time(timestamp_str: Optional[str]) -> str:
     Format a unix timestamp string as relative time using humanize.
 
     Args:
-        timestamp_str: Unix timestamp as string, or None
+        timestamp_str: Unix timestamp in milliseconds as string, or None
 
     Returns:
         Formatted relative time string (e.g., "10 seconds ago")
@@ -44,8 +44,10 @@ def format_relative_time(timestamp_str: Optional[str]) -> str:
         return "never"
 
     try:
-        timestamp = float(timestamp_str)
-        dt = datetime.fromtimestamp(timestamp)
+        timestamp_ms = float(timestamp_str)
+        # Convert milliseconds to seconds for datetime.fromtimestamp
+        timestamp_seconds = timestamp_ms / 1000.0
+        dt = datetime.fromtimestamp(timestamp_seconds)
         return humanize.naturaltime(dt)
     except (ValueError, TypeError):
         return "unknown"
@@ -215,27 +217,6 @@ Be concise and helpful. Assume they're smart but new to the syntax."""
         logger.error(f"OpenRouter API error: {e}")
         # Fallback to just the raw error
         return f"Parse error: {error_message}\n\nPlease check the EmailDSL syntax and try again."
-
-
-def format_relative_time(timestamp_str: Optional[str]) -> str:
-    """
-    Format a unix timestamp string as relative time using humanize.
-
-    Args:
-        timestamp_str: Unix timestamp as string, or None
-
-    Returns:
-        Formatted relative time string (e.g., "10 seconds ago")
-    """
-    if not timestamp_str:
-        return "never"
-
-    try:
-        timestamp = float(timestamp_str)
-        dt = datetime.fromtimestamp(timestamp)
-        return humanize.naturaltime(dt)
-    except (ValueError, TypeError):
-        return "unknown"
 
 
 def format_rankings_with_deltas(

@@ -25,12 +25,13 @@ def save_email(subject: str, body: str, from_email: Optional[str] = None, timest
 
     File structure:
         From: user@example.com
-        Timestamp: 1234567890
+        Timestamp: 1234567890123
         ---
         [email body content]
 
     Returns:
         Tuple of (filename, timestamp_str)
+    Note: Timestamp is in milliseconds.
     """
     init_storage()
 
