@@ -21,15 +21,13 @@
         {% endif %}
     </p>
 
-    <div style="margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 4px;">
-        <a href="mailto:about@mail.sorter.social?subject={{ ('Add to #' + hashtag)|urlencode }}&body={{ ('#' + hashtag + '\n-item-name { description }')|urlencode }}"
-           style="display: inline-block; padding: 8px 16px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; margin-right: 10px;">
-            ➕ Add Item
+    <div>
+        <a href="mailto:about@mail.sorter.social?subject={{ ('Add to #' + hashtag)|urlencode }}&body={{ ('#' + hashtag + '\n-item-name { description }')|urlencode }}">
+            <button type="button">Add Item</button>
         </a>
         {% if items|length >= 2 %}
-        <a href="mailto:about@mail.sorter.social?subject={{ ('Vote on #' + hashtag)|urlencode }}&body={{ ('#' + hashtag + '\n-' + items[0][0] + ' > -' + items[1][0] + ' { explanation }')|urlencode }}"
-           style="display: inline-block; padding: 8px 16px; background: #28a745; color: white; text-decoration: none; border-radius: 4px;">
-            🗳️ Quick Vote
+        <a href="mailto:about@mail.sorter.social?subject={{ ('Vote on #' + hashtag)|urlencode }}&body={{ ('#' + hashtag + '\n-' + items[0][0] + ' > -' + items[1][0] + ' { explanation }')|urlencode }}">
+            <button type="button">Quick Vote</button>
         </a>
         {% endif %}
     </div>
@@ -45,9 +43,8 @@
                     (score: {{ "%.4f"|format(rank_info[1]) }})
                 </span>
                 {% if loop.index > 1 %}
-                <a href="mailto:about@mail.sorter.social?subject={{ ('Vote on #' + hashtag)|urlencode }}&body={{ ('#' + hashtag + '\n-' + title + ' > -' + items[0][0] + ' { why ' + title + ' is better }')|urlencode }}"
-                   style="margin-left: 10px; padding: 4px 8px; background: #28a745; color: white; text-decoration: none; border-radius: 3px; font-size: 0.85em;">
-                    ⚡ Compare with #1
+                <a href="mailto:about@mail.sorter.social?subject={{ ('Vote on #' + hashtag)|urlencode }}&body={{ ('#' + hashtag + '\n-' + title + ' > -' + items[0][0] + ' { why ' + title + ' is better }')|urlencode }}">
+                    <button type="button">Compare with #1</button>
                 </a>
                 {% endif %}
             </div>
