@@ -30,11 +30,11 @@ dbmate create                               # Create the database
 ## Running Applications
 
 ```bash
-uvicorn src.main:app --reload               # Start FastAPI server with hot reload
-uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload  # Start server with custom host/port
-python src/rank.py 10                       # Run rank centrality with 10 items
-python src/rank.py 20 50                    # Run with 20 items and 50 extra comparisons
-python src/rank.py 15 30 5                  # Run 5 iterations with 15 items and 30 extra comparisons
+uv run uvicorn src.main:app --reload        # Start FastAPI server with hot reload (using uv)
+uv run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload  # Start server with custom host/port
+uv run python src/rank.py 10                # Run rank centrality with 10 items
+uv run python src/rank.py 20 50             # Run with 20 items and 50 extra comparisons
+uv run python src/rank.py 15 30 5           # Run 5 iterations with 15 items and 30 extra comparisons
 ```
 
 ## Deployment (fly.io)

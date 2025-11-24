@@ -37,3 +37,5 @@ all actions that are possible in sorted competiteve folksonomy are possible it e
 
 python lark library. 
 Because then I can paste the users query and the grammar at an llm and give helpful error messages
+
+i was thinking, of, to make it more robust to messy email than strict grammar, to have some rules of thumb: only start parsing on lines that start with !, #, +, /, etc. like a step before the parser checks for that condition, then initiates parsing. so then "sent from my iphone" is fine. and it only ingests the email if theres a parseable command in the file...
