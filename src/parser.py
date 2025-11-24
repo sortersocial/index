@@ -72,13 +72,14 @@ hashtag_name: ITEM_NAME
 
 item: "+" item_ref body?
 
-vote: vote_prefix? "+" item_ref comparison "+" item_ref body?
-vote_prefix: "!" "vote"
+vote: "+" item_ref comparison "+" item_ref body?
 
 comparison: NUMBER ":" NUMBER   -> ratio_comparison
           | NUMBER ">" NUMBER   -> greater_comparison
+          | NUMBER "<" NUMBER   -> less_comparison
           | NUMBER "=" NUMBER   -> equal_comparison
           | ">"                 -> simple_greater
+          | "<"                 -> simple_less
 
 attribute_decl: attribute+
 attribute: ":" WORD
@@ -137,13 +138,10 @@ class EmailDSLTransformer(Transformer):
         return Item(title=title, body=body)
 
     def vote(self, children):
-        # Filter out vote_prefix if present
-        args = [c for c in children if c is not None]
-
-        item1 = str(args[0])
-        comparison = args[1]
-        item2 = str(args[2])
-        explanation = self._extract_body(args[3]) if len(args) > 3 else None
+        item1 = str(children[0])
+        comparison = children[1]
+        item2 = str(children[2])
+        explanation = self._extract_body(children[3]) if len(children) > 3 else None
 
         ratio_left, ratio_right = comparison
 
@@ -155,20 +153,24 @@ class EmailDSLTransformer(Transformer):
             explanation=explanation,
         )
 
-    def vote_prefix(self, children):
-        return None  # Filter this out
-
     def ratio_comparison(self, children):
         return (int(children[0]), int(children[1]))
 
     def greater_comparison(self, children):
         return (int(children[0]), int(children[1]))
 
+    def less_comparison(self, children):
+        # a < b means b is greater, so swap the ratio
+        return (int(children[1]), int(children[0]))
+
     def equal_comparison(self, children):
         return (int(children[0]), int(children[1]))
 
     def simple_greater(self, children):
         return (1, 0)  # > means infinitely better, represent as 1:0
+
+    def simple_less(self, children):
+        return (0, 1)  # < means infinitely worse, represent as 0:1
 
     def attribute_decl(self, attributes):
         # Return list of attributes

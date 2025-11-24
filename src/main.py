@@ -105,10 +105,11 @@ async def read_root(request: Request):
 @app.get("/emails/{filename}", response_class=PlainTextResponse)
 async def get_email(filename: str):
     """Serve a specific email file as plain text"""
-    content = storage.get_email(filename)
-    if content is None:
+    result = storage.get_email(filename)
+    if result is None:
         return PlainTextResponse("Email not found", status_code=404)
-    return PlainTextResponse(content)
+    body, from_email, timestamp = result
+    return PlainTextResponse(body)
 
 @app.post("/webhook/postmark")
 async def postmark_webhook(email: PostmarkInboundEmail):
@@ -120,7 +121,7 @@ async def postmark_webhook(email: PostmarkInboundEmail):
 
     # 1. Persist to Disk (Append-Only Log)
     # We use the TextBody as the source of truth for the parser
-    storage.save_email(email.Subject, email.TextBody)
+    storage.save_email(email.Subject, email.TextBody, from_email=email.From)
     # Update local state immediately so we don't need to restart to see changes
     GLOBAL_STATE["email_count"] += 1
 

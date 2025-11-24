@@ -106,12 +106,6 @@ class TestVotes:
         assert vote.ratio_left == 1
         assert vote.ratio_right == 0
 
-    def test_vote_with_prefix(self, parser):
-        doc = parser.parse("!vote +item1 10:1 +item2")
-        vote = doc.statements[0]
-        assert vote.item1 == "item1"
-        assert vote.item2 == "item2"
-
     def test_vote_with_explanation(self, parser):
         doc = parser.parse("+item1 10:1 +item2 { item1 is much harder }")
         vote = doc.statements[0]
@@ -324,3 +318,80 @@ void quicksort(int arr[], int low, int high) {
         assert "void quicksort" in item.body
         assert "{" in item.body
         assert "}" in item.body
+
+
+class TestEdgeCases:
+    """Test edge cases and corner scenarios."""
+
+    def test_less_than_operator(self, parser):
+        doc = parser.parse("+item1 5<10 +item2")
+        vote = doc.statements[0]
+        assert isinstance(vote, Vote)
+        # 5<10 means item2 is greater, so ratio should be (10, 5)
+        assert vote.ratio_left == 10
+        assert vote.ratio_right == 5
+
+    def test_simple_less_than(self, parser):
+        doc = parser.parse("+item1 < +item2")
+        vote = doc.statements[0]
+        # < means item2 is infinitely better
+        assert vote.ratio_left == 0
+        assert vote.ratio_right == 1
+
+    def test_attribute_persists_across_votes(self, parser, reducer):
+        doc = parser.parse("""
+#ideas
++a { first }
++b { second }
+:difficulty
++a > +b
++b > +a
+""")
+        reducer.process_document(doc)
+        # Both votes should have difficulty attribute
+        assert len(reducer.state.votes) == 2
+        assert reducer.state.votes[0].attribute == "difficulty"
+        assert reducer.state.votes[1].attribute == "difficulty"
+
+    def test_multiple_attributes_last_wins(self, parser, reducer):
+        doc = parser.parse("""
+#ideas
++a { first }
++b { second }
+:difficulty :benefit
++a > +b
+""")
+        reducer.process_document(doc)
+        # Vote should have last attribute (benefit)
+        assert reducer.state.votes[0].attribute == "benefit"
+
+    def test_user_email_tracking(self, parser, reducer):
+        doc = parser.parse("""
+#ideas
++item1 { first }
++item2 { second }
++item1 > +item2
+""")
+        reducer.process_document(doc, timestamp="2024-01-01", user_email="alice@example.com")
+
+        # Check item has created_by
+        assert reducer.state.items["item1"].created_by == "alice@example.com"
+        assert reducer.state.items["item2"].created_by == "alice@example.com"
+
+        # Check vote has user_email
+        assert reducer.state.votes[0].user_email == "alice@example.com"
+
+    def test_same_user_votes_multiple_times(self, parser, reducer):
+        # User can vote multiple times (not an error)
+        doc = parser.parse("""
+#ideas
++a { first }
++b { second }
++a > +b
++a > +b
+""")
+        reducer.process_document(doc, user_email="alice@example.com")
+
+        # Should have 2 votes from same user
+        assert len(reducer.state.votes) == 2
+        assert all(v.user_email == "alice@example.com" for v in reducer.state.votes)

@@ -22,6 +22,7 @@ class ItemRecord:
     title: str
     body: Optional[str]
     hashtags: Set[str]
+    created_by: Optional[str] = None  # Email address of creator
     timestamp: Optional[str] = None
 
 
@@ -35,6 +36,7 @@ class VoteRecord:
     ratio_right: int
     attribute: Optional[str]
     explanation: Optional[str]
+    user_email: Optional[str] = None  # Email address of voter
     timestamp: Optional[str] = None
 
 
@@ -54,13 +56,20 @@ class Reducer:
         self.state = State()
         self.current_hashtag: Optional[str] = None
         self.current_attribute: Optional[str] = None
+        self.current_user_email: Optional[str] = None
 
-    def process_document(self, doc: Document, timestamp: Optional[str] = None):
+    def process_document(
+        self,
+        doc: Document,
+        timestamp: Optional[str] = None,
+        user_email: Optional[str] = None,
+    ):
         """Process a parsed document and update state.
 
         Args:
             doc: Parsed document
             timestamp: Optional timestamp for this document
+            user_email: Optional email address of the document author
 
         Raises:
             ParseError: If semantic validation fails
@@ -68,6 +77,7 @@ class Reducer:
         # Reset per-document context
         self.current_hashtag = None
         self.current_attribute = None
+        self.current_user_email = user_email
 
         for statement in doc.statements:
             if statement is None:
@@ -118,6 +128,7 @@ class Reducer:
                 title=item.title,
                 body=item.body,
                 hashtags={self.current_hashtag},
+                created_by=self.current_user_email,
                 timestamp=timestamp,
             )
 
@@ -158,6 +169,7 @@ class Reducer:
                 ratio_right=vote.ratio_right,
                 attribute=self.current_attribute,
                 explanation=vote.explanation,
+                user_email=self.current_user_email,
                 timestamp=timestamp,
             )
         )
@@ -186,12 +198,12 @@ class Reducer:
 
 
 def reduce_documents(
-    documents: List[tuple[Document, Optional[str]]]
+    documents: List[tuple[Document, Optional[str], Optional[str]]]
 ) -> tuple[State, List[str]]:
     """Reduce multiple documents into final state.
 
     Args:
-        documents: List of (document, timestamp) tuples
+        documents: List of (document, timestamp, user_email) tuples
 
     Returns:
         Tuple of (final_state, list_of_errors)
@@ -199,9 +211,9 @@ def reduce_documents(
     reducer = Reducer()
     errors = []
 
-    for doc, timestamp in documents:
+    for doc, timestamp, user_email in documents:
         try:
-            reducer.process_document(doc, timestamp)
+            reducer.process_document(doc, timestamp, user_email)
         except ParseError as e:
             errors.append(str(e))
 
