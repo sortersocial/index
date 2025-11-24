@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="/static/css/base.css">
     <link rel="stylesheet" href="/static/css/lists.css">
     <link rel="stylesheet" href="/static/css/votes.css">
+    <link rel="stylesheet" href="/static/css/markdown.css">
 </head>
 <body>
     <div class="back-link">
@@ -49,7 +50,7 @@
                 {% endif %}
             </div>
             {% if record.body %}
-            <div class="item-body">{{ record.body }}</div>
+            <div class="item-body">{{ record.body|markdown }}</div>
             {% endif %}
             <div class="item-meta">
                 {% if record.created_by %}
@@ -93,7 +94,7 @@
                 </div>
             </div>
             {% if vote.explanation %}
-            <div class="vote-explanation">"{{ vote.explanation }}"</div>
+            <div class="vote-explanation">{{ vote.explanation|markdown }}</div>
             {% endif %}
             <div class="vote-meta">
                 {% if vote.user_email %}

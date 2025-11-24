@@ -31,6 +31,25 @@ GLOBAL_STATE = {
 }
 
 
+def format_markdown(text: Optional[str]) -> str:
+    """Convert markdown to HTML with syntax highlighting."""
+    if not text:
+        return ""
+    import markdown
+    from markupsafe import Markup
+    html = markdown.markdown(
+        text,
+        extensions=['fenced_code', 'codehilite', 'nl2br'],
+        extension_configs={
+            'codehilite': {
+                'css_class': 'highlight',
+                'guess_lang': False
+            }
+        }
+    )
+    return Markup(html)
+
+
 def format_relative_time(timestamp_str: Optional[str]) -> str:
     """
     Format a unix timestamp string as relative time using humanize.
@@ -97,6 +116,7 @@ app.mount("/static", StaticFiles(directory="src/static"), name="static")
 
 # Add custom filters to Jinja2
 templates.env.filters["relative_time"] = format_relative_time
+templates.env.filters["markdown"] = format_markdown
 
 # Initialize Postmark client
 postmark_token = os.getenv("POSTMARK_SERVER_TOKEN")
