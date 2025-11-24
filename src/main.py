@@ -66,8 +66,10 @@ parser = EmailDSLParser()
 reducer = Reducer()
 
 # OpenRouter configuration
-OPENROUTER_API_KEY = "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"
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+if not OPENROUTER_API_KEY:
+    logger.warning("OPENROUTER_API_KEY not set - LLM error explanations disabled")
 
 # EmailDSL Grammar Documentation
 GRAMMAR_DOC = """
@@ -292,10 +294,10 @@ async def postmark_webhook(email: PostmarkInboundEmail):
         To=email.From,
         Subject=subject,
         TextBody=reply_body,
-        Headers=[
-            {"Name": "In-Reply-To", "Value": incoming_message_id},
-            {"Name": "References", "Value": reply_references}
-        ],
+        Headers={
+            "In-Reply-To": incoming_message_id,
+            "References": reply_references
+        },
         TrackOpens=False,
         TrackLinks="None"
     )
