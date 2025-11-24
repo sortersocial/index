@@ -31,7 +31,7 @@ number = optional(range('1-2')).range('0-9')
 }
 
 -regal {
-Uses Clojure data structures (vectors and keywords) to represent regex patterns, similar to Hiccup for HTML. Supports multiple regex flavors (Java, JavaScript) and can generate test data from patterns.
+Uses Clojure data structures (vectors and keywords) to represent regex patterns, similar to Hiccup for HTML. Supports multiple regex flavors (Java, JavaScript) and can generate test data from patterns. 
 ```clojure
 (def r [:cat
         [:+ [:class [\a \z]]]
@@ -42,6 +42,8 @@ Uses Clojure data structures (vectors and keywords) to represent regex patterns,
 ```
 }
 
--regal 3:1 -python-VerbalExpressions
--regal 3:1 -rxe
--regal 2:1 -regex-builder
+-rxe = -python-VerbalExpressions
+-regex-builder 21:20 -rxe
+-regal 2:1 -regex-builder {
+its just data!
+}
