@@ -85,27 +85,15 @@ attribute: ":" WORD
 
 email_address: EMAIL
 
-body: LBRACE LBRACE body_text_double RBRACE RBRACE  -> body_double
-    | LBRACE body_text_single RBRACE                  -> body_single
-
-body_text_double: BODY_TEXT_DOUBLE
-body_text_single: BODY_TEXT_SINGLE
+body: BLOCK_TOKEN
 
 item_ref: ITEM_NAME
 
 // Terminals - order matters for priority
 EMAIL: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/
 
-// Braces
-LBRACE: "{"
-RBRACE: "}"
-
-// Body text for double braces - can contain single braces
-// Use high priority to match before other terminals
-BODY_TEXT_DOUBLE.10: /(.|\n)+?(?=\}\})/
-
-// Body text for single braces - cannot contain braces
-BODY_TEXT_SINGLE.5: /[^{}]+/
+// Block token - represents masked content from BlockMasker
+BLOCK_TOKEN: /__BLOCK_[a-f0-9]{8}__/
 
 ITEM_NAME: /[a-zA-Z0-9_]+([-][a-zA-Z0-9_]+)*/
 NUMBER: /[0-9]+/
@@ -119,6 +107,11 @@ WORD: /[a-zA-Z0-9_]+/
 
 class EmailDSLTransformer(Transformer):
     """Transform parse tree into AST nodes."""
+
+    def __init__(self, masker: Optional['BlockMasker'] = None):
+        """Initialize transformer with optional masker for unmasking block tokens."""
+        super().__init__()
+        self.masker = masker
 
     def start(self, children):
         # Filter out newlines and None values
@@ -177,28 +170,27 @@ class EmailDSLTransformer(Transformer):
     def item_ref(self, children):
         return str(children[0])
 
-    def body_single(self, children):
-        """Handle single brace body: { text }"""
-        # children[0] is LBRACE, children[1] is body_text_single, children[2] is RBRACE
-        return str(children[1]).strip()
-
-    def body_double(self, children):
-        """Handle double brace body: {{ text }}"""
-        # children[0:2] are LBRACEs, children[2] is body_text_double, children[3:5] are RBRACEs
-        return str(children[2]).strip()
-
-    def body_text_single(self, children):
-        return str(children[0])
-
-    def body_text_double(self, children):
-        return str(children[0])
+    def body(self, children):
+        """Handle body block token - unmask and extract content."""
+        token = str(children[0])
+        if self.masker and token in self.masker.replacements:
+            # Unmask the token to get original text with braces
+            original = self.masker.replacements[token]
+            # Remove outer braces and return content
+            # Handle both {{ }} and { } formats
+            if original.startswith("{{") and original.endswith("}}"):
+                return original[2:-2].strip()
+            elif original.startswith("{") and original.endswith("}"):
+                return original[1:-1].strip()
+            return original.strip()
+        # If no masker or token not found, return as-is
+        return token
 
     def _extract_body(self, body_token):
-        """Extract text from body token, removing delimiters."""
+        """Extract text from body token."""
         if body_token is None:
             return None
-
-        # body_token is already processed by body_single/body_double
+        # body_token is already processed by body() method
         return str(body_token)
 
 
@@ -300,12 +292,26 @@ class EmailDSLParser:
             GRAMMAR,
             parser="lalr",
         )
-        self.transformer = EmailDSLTransformer()
 
     def parse(self, text: str) -> Document:
-        """Parse EmailDSL text into AST."""
+        """Parse EmailDSL text into AST.
+
+        This method masks braces before parsing so the grammar only needs to
+        recognize block tokens, not handle bracket matching logic.
+        """
+        masker = BlockMasker()
+
+        # Mask all brace types
+        text = masker.mask(text, "```", "```")
+        text = masker.mask(text, "{{", "}}")
+        text = masker.mask(text, "{", "}")
+
+        # Parse with block tokens
         tree = self.parser.parse(text)
-        return self.transformer.transform(tree)
+
+        # Transform and unmask at AST level
+        transformer = EmailDSLTransformer(masker)
+        return transformer.transform(tree)
 
     def parse_lines(self, text: str) -> Document:
         """Parse EmailDSL with stateless line-based filtering.
@@ -316,8 +322,8 @@ class EmailDSLParser:
         2. Filter lines. Since bodies are now single tokens on the definition line,
            we can simply check if the line starts with a DSL character.
            Noise lines (signatures, greetings) won't have tokens and won't start with chars.
-        3. Unmask text to restore original bodies.
-        4. Parse.
+        3. Parse with block tokens (grammar recognizes tokens, not braces).
+        4. Unmask during AST transformation.
         """
         masker = BlockMasker()
 
@@ -341,8 +347,9 @@ class EmailDSLParser:
 
         filtered_text = "\n".join(filtered_lines)
 
-        # 3. Unmask (Restore bodies)
-        restored_text = masker.unmask(filtered_text)
+        # 3. Parse with block tokens (no unmasking needed before parse)
+        tree = self.parser.parse(filtered_text)
 
-        # 4. Parse
-        return self.parse(restored_text)
+        # 4. Transform and unmask at AST level
+        transformer = EmailDSLTransformer(masker)
+        return transformer.transform(tree)
