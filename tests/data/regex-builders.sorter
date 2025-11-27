@@ -1,6 +1,6 @@
 #regex-builders
 
--rxe {
+/rxe {
 Uses method chaining with readable names like .digit(), .one_or_more(), .literal(). Great for building complex patterns piece by piece. Patterns can be saved and reused as variables.
 ```python
 email = (rxe
@@ -12,7 +12,7 @@ email = (rxe
 Install: pip install git+git://github.com/mtrencseni/rxe
 }
 
--python-VerbalExpressions {
+/python-VerbalExpressions {
 Python port of the popular VerbalExpressions family. Very readable fluent API with methods like .start_of_line(), .find(), .maybe(). Best for simpler patterns where extreme readability matters. Wide language support across many platforms.
 ```python
 url = (VerEx()
@@ -23,14 +23,14 @@ url = (VerEx()
 ```
 }
 
--regex-builder {
+/regex-builder {
 Functional approach with immutable builder objects. Good for systematic construction with functions like literal(), range(), repeats(). Allows pattern reuse and composition. Less actively maintained than the others.
 ```python
 number = optional(range('1-2')).range('0-9')
 ```
 }
 
--regal {
+/regal {
 Uses Clojure data structures (vectors and keywords) to represent regex patterns, similar to Hiccup for HTML. Supports multiple regex flavors (Java, JavaScript) and can generate test data from patterns. 
 ```clojure
 (def r [:cat
@@ -42,8 +42,8 @@ Uses Clojure data structures (vectors and keywords) to represent regex patterns,
 ```
 }
 
--rxe = -python-VerbalExpressions
--regex-builder 21:20 -rxe
--regal 2:1 -regex-builder {
+/rxe = /python-VerbalExpressions
+/regex-builder 21:20 /rxe
+/regal 2:1 /regex-builder {
 its just data!
 }

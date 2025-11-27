@@ -20,7 +20,7 @@ class Hashtag:
 
 @dataclass
 class Item:
-    """Item submission: -item-title { optional body }"""
+    """Item submission: /item-title { optional body }"""
 
     title: str
     body: Optional[str] = None
@@ -35,7 +35,7 @@ class Attribute:
 
 @dataclass
 class Vote:
-    """Vote between items: -item1 10:1 -item2 { explanation }"""
+    """Vote between items: /item1 10:1 /item2 { explanation }"""
 
     item1: str
     item2: str
@@ -71,9 +71,9 @@ start: _NL* (statement _NL+)* statement?
 hashtag: "#" hashtag_name
 hashtag_name: ITEM_NAME
 
-item: "-" item_ref body?
+item: "/" item_ref body?
 
-vote: "-" item_ref comparison "-" item_ref body?
+vote: "/" item_ref comparison "/" item_ref body?
 
 comparison: NUMBER ":" NUMBER   -> ratio_comparison
           | ">"                 -> simple_greater
@@ -335,7 +335,8 @@ class EmailDSLParser:
             stripped = line.lstrip()
             # If a line starts with a command char, keep it.
             # Because bodies are masked into tokens on these lines, we keep the bodies too.
-            if stripped and stripped[0] in "#:-!@":
+            # Special chars: # (hashtag), : (attribute), / (item/vote), @ (email), ! (future use)
+            if stripped and stripped[0] in "#:/@!":
                 filtered_lines.append(line)
 
         filtered_text = "\n".join(filtered_lines)

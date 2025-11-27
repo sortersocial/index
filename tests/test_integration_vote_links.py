@@ -13,9 +13,9 @@ def test_vote_has_source_filename():
 
     # Parse an email with a vote
     email_body = """#ideas
--task1 { first item }
--task2 { second item }
--task1 > -task2 { task1 is better }
+/task1 { first item }
+/task2 { second item }
+/task1 > /task2 { task1 is better }
 """
 
     doc = parser.parse_lines(email_body)
@@ -46,9 +46,9 @@ def test_vote_without_filename():
     reducer = Reducer()
 
     email_body = """#ideas
--task1
--task2
--task1 > -task2
+/task1
+/task2
+/task1 > /task2
 """
 
     doc = parser.parse_lines(email_body)
@@ -78,9 +78,9 @@ def test_multiple_votes_different_files():
 
     # First email
     email1 = """#ideas
--a
--b
--a > -b
+/a
+/b
+/a > /b
 """
     doc1 = parser.parse_lines(email1)
     reducer.process_document(
@@ -92,8 +92,8 @@ def test_multiple_votes_different_files():
 
     # Second email
     email2 = """#ideas
--c
--a > -c
+/c
+/a > /c
 """
     doc2 = parser.parse_lines(email2)
     reducer.process_document(
@@ -123,9 +123,9 @@ def test_html_rendering_includes_link():
     reducer = Reducer()
 
     email_body = """#test
--item1
--item2
--item1 > -item2
+/item1
+/item2
+/item1 > /item2
 """
 
     doc = parser.parse_lines(email_body)

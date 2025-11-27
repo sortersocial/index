@@ -1,33 +1,33 @@
 emails are parsed using grammar.
 # = hashtag
 : = attribute
-+ = item title
+/ = item title
 @ = email delimiter
 
 ``emaildsl
 
 #hashtags
-+title-of-this-item {
-    
+/title-of-this-item {
+
 body-of-the-item
 inside braces because they are not used otherwise in english grammar, unlike parenthesis and periods.
 }
 
-+item2 {
+/item2 {
     this is a second item, being subitted. because #hashtags is the most recent # declaration, this item is submitted under that hashtag
 }
 username@hostname.com
 
-:difficulty :benefit 
+:difficulty :benefit
 
 text that doesn't start with a special character is just text..
 all actions that are possible in sorted competiteve folksonomy are possible it emaildsl.
   - pairwise votes
 
-  +title-of-this-item 10:1 +item2  (explicit ratio)
-  +item1 > +item2   (clearly better, 2:1 ratio)
-  +item1 < +item2   (clearly worse, 1:2 ratio)
-  +item1 = +item2   (equal, 1:1 ratio)
+  /title-of-this-item 10:1 /item2  (explicit ratio)
+  /item1 > /item2   (clearly better, 2:1 ratio)
+  /item1 < /item2   (clearly worse, 1:2 ratio)
+  /item1 = /item2   (equal, 1:1 ratio)
 
 
 ```

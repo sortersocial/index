@@ -22,7 +22,7 @@ class TestLineFilteringEdgeCases:
         text = """Hi there!
 
 #ideas
--task1 { description }
+/task1 { description }
 
 Sent from my iPhone"""
 
@@ -35,12 +35,12 @@ Sent from my iPhone"""
     def test_multiline_body_works(self, parser):
         """Line filtering keeps multi-line body content."""
         text = """#ideas
--task1 {
+/task1 {
   This is a longer
   description with
   multiple lines
 }
--task2"""
+/task2"""
 
         doc = parser.parse_lines(text)
         assert len(doc.statements) == 3
@@ -49,7 +49,7 @@ Sent from my iPhone"""
     def test_balanced_braces_in_code_works(self, parser):
         """Balanced braces in code work because they cancel out."""
         text = """#code
--snippet {{
+/snippet {{
   printf("{test}");
 }}"""
 
@@ -60,7 +60,7 @@ Sent from my iPhone"""
     def test_double_braces_with_nested_works(self, parser):
         """Double braces with nested braces work if balanced per line."""
         text = """#code
--snippet {{
+/snippet {{
   code with { nested } braces
 }}"""
 
@@ -75,11 +75,11 @@ Sent from my iPhone"""
         approach correctly protects the body content before filtering.
         """
         text = """#code
--snippet {{
+/snippet {{
   printf("{test");
 }}
 This should be noise
--item2"""
+/item2"""
 
         # This now WORKS! Masking protects the body, filters noise
         doc = parser.parse_lines(text)
@@ -90,7 +90,7 @@ This should be noise
     def test_unbalanced_brace_in_comment_now_works(self, parser):
         """FIXED: Masking approach handles unbalanced braces in comments."""
         text = """#code
--snippet {{
+/snippet {{
   // Comment with opening brace: {
   return 0;
 }}
@@ -108,7 +108,7 @@ Noise after"""
         the body, the parser doesn't encounter the problematic lines.
         """
         text = """#code
--snippet {{
+/snippet {{
   printf("{test");
 }}"""
 
@@ -124,10 +124,10 @@ Noise after"""
         The full grammar handles the structure correctly.
         """
         text = """#code
--snippet {{
+/snippet {{
   printf("{test");
 }}
--item2"""
+/item2"""
 
         # parse() works fine (no line filtering)
         doc = parser.parse(text)
@@ -136,11 +136,11 @@ Noise after"""
     def test_workaround_balanced_braces(self, parser):
         """WORKAROUND: Balance braces in string literals."""
         text = """#code
--snippet {{
+/snippet {{
   printf("{test}");  // Closing brace added
 }}
 Noise after
--item2"""
+/item2"""
 
         # Works because braces are balanced: +1-1=0 on the printf line
         doc = parser.parse_lines(text)
@@ -151,7 +151,7 @@ Noise after
         text = """Hi there!
 
 #code
--snippet {{
+/snippet {{
   printf("{test");
 }}"""
 
@@ -165,7 +165,7 @@ class TestBraceDepthTracking:
 
     def test_depth_tracking_simple(self):
         """Test basic depth tracking logic."""
-        lines = ["#test", "-item {", "body", "}"]
+        lines = ["#test", "/item {", "body", "}"]
         depths = []
         depth = 0
 
@@ -182,7 +182,7 @@ class TestBraceDepthTracking:
         """Show how unbalanced braces in strings break depth tracking."""
         lines = [
             "#test",
-            '-item {{',
+            '/item {{',
             '  printf("{test");',  # Has unbalanced opening brace!
             '  printf("{test");',  # Another one
         ]
@@ -200,7 +200,7 @@ class TestBraceDepthTracking:
         """Show exact failure case."""
         lines = [
             "#test",
-            '-item {{',           # depth 0 → 2
+            '/item {{',           # depth 0 → 2
             '  printf("{test");', # depth 2 → 3 (WRONG! Should stay 2)
             '}}',                 # depth 3 → 1 (WRONG! Should be 0)
             'Noise',              # depth=1, so this gets KEPT
@@ -226,7 +226,7 @@ class TestAlternativeApproaches:
         """Without filtering, noise causes parse failures."""
         text = """Hi there!
 #ideas
--task1"""
+/task1"""
 
         # This fails because "Hi there!" is not valid DSL
         with pytest.raises(Exception):
@@ -242,7 +242,7 @@ class TestAlternativeApproaches:
         text = """Hi there!
 
 #ideas
--task1 {{
+/task1 {{
   printf("{test");
 }}
 

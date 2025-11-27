@@ -43,21 +43,21 @@ class TestItems:
     """Test item parsing."""
 
     def test_item_without_body(self, parser):
-        doc = parser.parse("-simple-task")
+        doc = parser.parse("/simple-task")
         assert len(doc.statements) == 1
         assert isinstance(doc.statements[0], Item)
         assert doc.statements[0].title == "simple-task"
         assert doc.statements[0].body is None
 
     def test_item_with_body(self, parser):
-        doc = parser.parse("-task { this is the body }")
+        doc = parser.parse("/task { this is the body }")
         assert len(doc.statements) == 1
         item = doc.statements[0]
         assert item.title == "task"
         assert item.body == "this is the body"
 
     def test_item_with_multiline_body(self, parser):
-        text = """-task {
+        text = """/task {
 this is a multiline
 body with several lines
 }"""
@@ -67,11 +67,11 @@ body with several lines
         assert "several lines" in item.body
 
     def test_item_underscore_title(self, parser):
-        doc = parser.parse("-my_task_name")
+        doc = parser.parse("/my_task_name")
         assert doc.statements[0].title == "my_task_name"
 
     def test_item_with_numbers(self, parser):
-        doc = parser.parse("-task123")
+        doc = parser.parse("/task123")
         assert doc.statements[0].title == "task123"
 
 
@@ -79,7 +79,7 @@ class TestVotes:
     """Test vote parsing."""
 
     def test_vote_ratio_syntax(self, parser):
-        doc = parser.parse("-item1 10:1 -item2")
+        doc = parser.parse("/item1 10:1 /item2")
         assert len(doc.statements) == 1
         vote = doc.statements[0]
         assert isinstance(vote, Vote)
@@ -89,13 +89,13 @@ class TestVotes:
         assert vote.ratio_right == 1
 
     def test_vote_simple_greater(self, parser):
-        doc = parser.parse("-item1 > -item2")
+        doc = parser.parse("/item1 > /item2")
         vote = doc.statements[0]
         assert vote.ratio_left == 2
         assert vote.ratio_right == 1
 
     def test_vote_with_explanation(self, parser):
-        doc = parser.parse("-item1 10:1 -item2 { item1 is much harder }")
+        doc = parser.parse("/item1 10:1 /item2 { item1 is much harder }")
         vote = doc.statements[0]
         assert vote.explanation == "item1 is much harder"
 
@@ -139,12 +139,12 @@ class TestNestedBraces:
     """Test nested brace handling."""
 
     def test_double_brace_body(self, parser):
-        doc = parser.parse("-item {{ code with { braces } inside }}")
+        doc = parser.parse("/item {{ code with { braces } inside }}")
         item = doc.statements[0]
         assert "{ braces }" in item.body
 
     def test_double_brace_vote_explanation(self, parser):
-        doc = parser.parse("-a 10:1 -b {{ explanation with { nested } braces }}")
+        doc = parser.parse("/a 10:1 /b {{ explanation with { nested } braces }}")
         vote = doc.statements[0]
         assert "{ nested }" in vote.explanation
 
@@ -155,8 +155,8 @@ class TestFullDocuments:
     def test_simple_document(self, parser):
         text = """
 #ideas
--task1 { first task }
--task2 { second task }
+/task1 { first task }
+/task2 { second task }
 """
         doc = parser.parse(text)
         assert len(doc.statements) == 3
@@ -167,10 +167,10 @@ class TestFullDocuments:
     def test_document_with_votes(self, parser):
         text = """
 #projects
--proj1 { first project }
--proj2 { second project }
+/proj1 { first project }
+/proj2 { second project }
 :difficulty
--proj1 10:1 -proj2 { proj1 is much harder }
+/proj1 10:1 /proj2 { proj1 is much harder }
 """
         doc = parser.parse(text)
         statements = [s for s in doc.statements if s is not None]
@@ -181,7 +181,7 @@ class TestFullDocuments:
 Hello there!
 
 #ideas
--task1 { real task }
+/task1 { real task }
 
 Sent from my iPhone
 """
@@ -195,27 +195,27 @@ class TestReducer:
     """Test semantic analysis and state reduction."""
 
     def test_item_requires_hashtag(self, parser, reducer):
-        doc = parser.parse("-item1 { body }")
+        doc = parser.parse("/item1 { body }")
         with pytest.raises(ParseError, match="without hashtag context"):
             reducer.process_document(doc)
 
     def test_item_with_hashtag(self, parser, reducer):
-        doc = parser.parse("#ideas\n-item1 { body }")
+        doc = parser.parse("#ideas\n/item1 { body }")
         reducer.process_document(doc)
         assert "item1" in reducer.state.items
         assert "ideas" in reducer.state.items["item1"].hashtags
 
     def test_vote_requires_existing_items(self, parser, reducer):
-        doc = parser.parse("-item1 10:1 -item2")
+        doc = parser.parse("/item1 10:1 /item2")
         with pytest.raises(ParseError, match="item does not exist"):
             reducer.process_document(doc)
 
     def test_valid_vote(self, parser, reducer):
         doc = parser.parse("""
 #ideas
--item1 { first }
--item2 { second }
--item1 10:1 -item2
+/item1 { first }
+/item2 { second }
+/item1 10:1 /item2
 """)
         reducer.process_document(doc)
         assert len(reducer.state.votes) == 1
@@ -225,10 +225,10 @@ class TestReducer:
     def test_vote_with_attribute_context(self, parser, reducer):
         doc = parser.parse("""
 #ideas
--item1 { first }
--item2 { second }
+/item1 { first }
+/item2 { second }
 :difficulty
--item1 10:1 -item2
+/item1 10:1 /item2
 """)
         reducer.process_document(doc)
         vote = reducer.state.votes[0]
@@ -236,11 +236,11 @@ class TestReducer:
 
     def test_multiple_hashtags_per_item(self, parser, reducer):
         # First document: item under #ideas
-        doc1 = parser.parse("#ideas\n-item1 { body }")
+        doc1 = parser.parse("#ideas\n/item1 { body }")
         reducer.process_document(doc1)
 
         # Second document: same item under #work
-        doc2 = parser.parse("#work\n-item1")
+        doc2 = parser.parse("#work\n/item1")
         reducer.process_document(doc2)
 
         item = reducer.state.items["item1"]
@@ -255,9 +255,9 @@ class TestComplexScenarios:
         # User submits items
         email1 = """
 #tasks
--write-docs { Write documentation for the API }
--fix-bug { Fix the memory leak in parser }
--add-tests { Add comprehensive test coverage }
+/write-docs { Write documentation for the API }
+/fix-bug { Fix the memory leak in parser }
+/add-tests { Add comprehensive test coverage }
 """
         doc1 = parser.parse(email1)
         reducer.process_document(doc1, timestamp="2024-01-01")
@@ -266,9 +266,9 @@ class TestComplexScenarios:
         email2 = """
 #tasks
 :difficulty
--fix-bug 10:1 -write-docs { Debugging is much harder }
--add-tests 5:1 -write-docs
--fix-bug 2:1 -add-tests
+/fix-bug 10:1 /write-docs { Debugging is much harder }
+/add-tests 5:1 /write-docs
+/fix-bug 2:1 /add-tests
 """
         doc2 = parser.parse(email2)
         reducer.process_document(doc2, timestamp="2024-01-02")
@@ -292,7 +292,7 @@ class TestComplexScenarios:
     def test_c_code_in_body(self, parser):
         text = """
 #code-snippets
--quicksort {{
+/quicksort {{
 void quicksort(int arr[], int low, int high) {
     if (low < high) {
         int pi = partition(arr, low, high);
@@ -312,14 +312,14 @@ class TestEdgeCases:
     """Test edge cases and corner scenarios."""
 
     def test_simple_less_than(self, parser):
-        doc = parser.parse("-item1 < -item2")
+        doc = parser.parse("/item1 < /item2")
         vote = doc.statements[0]
         # < means item2 is clearly better (2:1 ratio)
         assert vote.ratio_left == 1
         assert vote.ratio_right == 2
 
     def test_simple_equal(self, parser):
-        doc = parser.parse("-item1 = -item2")
+        doc = parser.parse("/item1 = /item2")
         vote = doc.statements[0]
         # = means equal preference
         assert vote.ratio_left == 1
@@ -329,9 +329,9 @@ class TestEdgeCases:
         # Zero ratios break the random walk algorithm
         doc = parser.parse("""
 #ideas
--a { first }
--b { second }
--a 0:1 -b
+/a { first }
+/b { second }
+/a 0:1 /b
 """)
         with pytest.raises(ParseError, match="cannot contain 0"):
             reducer.process_document(doc)
@@ -339,11 +339,11 @@ class TestEdgeCases:
     def test_attribute_persists_across_votes(self, parser, reducer):
         doc = parser.parse("""
 #ideas
--a { first }
--b { second }
+/a { first }
+/b { second }
 :difficulty
--a > -b
--b > -a
+/a > /b
+/b > /a
 """)
         reducer.process_document(doc)
         # Both votes should have difficulty attribute
@@ -354,10 +354,10 @@ class TestEdgeCases:
     def test_multiple_attributes_last_wins(self, parser, reducer):
         doc = parser.parse("""
 #ideas
--a { first }
--b { second }
+/a { first }
+/b { second }
 :difficulty :benefit
--a > -b
+/a > /b
 """)
         reducer.process_document(doc)
         # Vote should have last attribute (benefit)
@@ -366,9 +366,9 @@ class TestEdgeCases:
     def test_user_email_tracking(self, parser, reducer):
         doc = parser.parse("""
 #ideas
--item1 { first }
--item2 { second }
--item1 > -item2
+/item1 { first }
+/item2 { second }
+/item1 > /item2
 """)
         reducer.process_document(doc, timestamp="2024-01-01", user_email="alice@example.com")
 
@@ -383,10 +383,10 @@ class TestEdgeCases:
         # User can vote multiple times (not an error)
         doc = parser.parse("""
 #ideas
--a { first }
--b { second }
--a > -b
--a > -b
+/a { first }
+/b { second }
+/a > /b
+/a > /b
 """)
         reducer.process_document(doc, user_email="alice@example.com")
 
