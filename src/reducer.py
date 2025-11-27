@@ -231,3 +231,40 @@ def reduce_documents(
             errors.append(str(e))
 
     return reducer.state, errors
+
+
+if __name__ == "__main__":
+    import sys
+    from pathlib import Path
+    from src.parser import EmailDSLParser
+    from src.rank import compute_rankings_from_state
+
+    if len(sys.argv) < 2:
+        print("usage: python -m src.reducer <file.sorter> [hashtag]")
+        sys.exit(1)
+
+    file_path = Path(sys.argv[1])
+    hashtag = sys.argv[2] if len(sys.argv) > 2 else None
+
+    # Parse file
+    content = file_path.read_text(encoding="utf-8")
+    parser = EmailDSLParser()
+    doc = parser.parse_lines(content)
+
+    # Reduce
+    reducer = Reducer()
+    reducer.process_document(doc, timestamp="0", user_email="cli")
+
+    # Filter by hashtag if specified
+    if hashtag:
+        items = {t: r for t, r in reducer.state.items.items() if hashtag in r.hashtags}
+        votes = [v for v in reducer.state.votes if v.item1 in items and v.item2 in items]
+        state = State(items=items, votes=votes)
+    else:
+        state = reducer.state
+
+    # Rank and print
+    rankings = compute_rankings_from_state(state)
+
+    for title, score, rank in rankings:
+        print(f"{rank}. {title} ({score:.4f})")
