@@ -80,7 +80,7 @@ def parse_email_file(content: str) -> Tuple[str, Optional[str], Optional[str]]:
 
     # No separator = legacy file with just body
     if separator_idx is None:
-        return (content, None, None)
+        raise ValueError("No separator found in email file")
 
     # Parse metadata headers
     from_email = None
