@@ -1,0 +1,22 @@
+First we declare the topic, with #. Like in IRC rooms.
+
+#persuasion-modes
+
+Then we declare item titles, with /, and item bodies with {}
+
+/ethos { credibility, authority }
+/pathos { audience emotions }
+/logos { sense of reason and logic }
+
+So far so good. Here's where it gets interesting. Let's make 2 pairwise judgments between these 3 items. 
+
+:difficult
+/ethos 2:1 /logos {
+we are inside of a vote's justification right now
+ethos is 2 parts difficult, logos is 1 part difficult.
+this is because it takes a lifetime to build credibility, but seconds to wordsmith a passable argument.
+}
+
+/pathos = /logos {
+because pandering to emotion isn't harder or easier than avoiding contradictions.
+}
