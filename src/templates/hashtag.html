@@ -24,11 +24,11 @@
     </p>
 
     <div class="action-buttons">
-        <a href="mailto:about@mail.sorter.social?subject={{ ('Add to #' + hashtag)|urlencode }}&body={{ ('#' + hashtag + '\n-item-name { description }')|urlencode }}" class="button">
+        <a href="mailto:about@mail.sorter.social?subject={{ ('Add to #' + hashtag)|urlencode }}&body={{ ('#' + hashtag + '\n\n/item-name { description }')|urlencode }}" class="button">
             Add Item
         </a>
         {% if items|length >= 2 %}
-        <a href="mailto:about@mail.sorter.social?subject={{ ('Vote on #' + hashtag)|urlencode }}&body={{ ('#' + hashtag + '\n-' + items[0][0] + ' > -' + items[1][0] + ' { explanation }')|urlencode }}" class="button">
+        <a href="mailto:about@mail.sorter.social?subject={{ ('Vote on #' + hashtag)|urlencode }}&body={{ ('#' + hashtag + '\n\n/' + items[0][0] + ' > /' + items[1][0] + ' { explanation }')|urlencode }}" class="button">
             Quick Vote
         </a>
         {% endif %}
@@ -45,7 +45,7 @@
                     (score: {{ "%.4f"|format(rank_info[1]) }})
                 </span>
                 {% if loop.index > 1 %}
-                <a href="mailto:about@mail.sorter.social?subject={{ ('Vote on #' + hashtag)|urlencode }}&body={{ ('#' + hashtag + '\n-' + title + ' > -' + items[0][0] + ' { why ' + title + ' is better }')|urlencode }}" class="button-small">
+                <a href="mailto:about@mail.sorter.social?subject={{ ('Vote on #' + hashtag)|urlencode }}&body={{ ('#' + hashtag + '\n\n/' + title + ' > /' + items[0][0] + ' { why ' + title + ' is better }')|urlencode }}" class="button-small">
                     Compare with #1
                 </a>
                 {% endif %}

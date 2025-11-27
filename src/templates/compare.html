@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ item1 }} vs {{ item2 }} - Sorter</title>
+    <link rel="stylesheet" href="/static/css/base.css">
+    <link rel="stylesheet" href="/static/css/lists.css">
+    <link rel="stylesheet" href="/static/css/votes.css">
+    <link rel="stylesheet" href="/static/css/markdown.css">
+    <style>
+        .comparison-header {
+            text-align: center;
+            margin: 2em 0;
+        }
+        .vs-separator {
+            font-size: 1.2em;
+            color: #999;
+            margin: 0 1em;
+        }
+        .item-card {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 10px 0;
+        }
+        .item-card h3 {
+            margin-top: 0;
+        }
+        .aggregate-result {
+            background: white;
+            border: 2px solid #007bff;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 30px 0;
+            text-align: center;
+        }
+        .aggregate-bar {
+            height: 40px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 15px 0;
+            display: flex;
+        }
+        .aggregate-bar-left {
+            background: #4CAF50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        .aggregate-bar-right {
+            background: #2196F3;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        .no-votes {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 40px;
+        }
+    </style>
+</head>
+<body>
+    {% include "_github_corner.html" %}
+    <div class="back-link">
+        <a href="/">&larr; Back to index</a>
+    </div>
+
+    <div class="comparison-header">
+        <h1>
+            <span style="color: #4CAF50;">{{ item1 }}</span>
+            <span class="vs-separator">vs</span>
+            <span style="color: #2196F3;">{{ item2 }}</span>
+        </h1>
+        {% if common_hashtags %}
+        <p style="color: #666;">
+            {% for tag in common_hashtags %}
+            <a href="/hashtag/{{ tag }}">#{{ tag }}</a>
+            {% if not loop.last %} · {% endif %}
+            {% endfor %}
+        </p>
+        {% endif %}
+    </div>
+
+    <div class="action-buttons" style="text-align: center;">
+        <a href="mailto:about@mail.sorter.social?subject={{ ('Compare: ' + item1 + ' vs ' + item2)|urlencode }}&body={{ ('/' + item1 + ' > /' + item2 + ' { why ' + item1 + ' is better }')|urlencode }}" class="button">
+            Cast Your Vote
+        </a>
+    </div>
+
+    {% if votes %}
+    <div class="aggregate-result">
+        <h2>Aggregate Preference</h2>
+        <p style="font-size: 1.2em; color: #666;">
+            {{ votes|length }} vote{{ 's' if votes|length != 1 else '' }} cast
+        </p>
+        <div class="aggregate-bar">
+            <div class="aggregate-bar-left" style="width: {{ item1_percentage }}%;">
+                {{ item1 }} ({{ item1_percentage }}%)
+            </div>
+            <div class="aggregate-bar-right" style="width: {{ 100 - item1_percentage }}%;">
+                {{ item2 }} ({{ 100 - item1_percentage }}%)
+            </div>
+        </div>
+        <p style="color: #999; font-size: 0.9em;">
+            Total ratio: {{ "%.1f"|format(item1_preference) }}:{{ "%.1f"|format(item2_preference) }}
+        </p>
+    </div>
+
+    <div class="item-card">
+        <h3>{{ item1 }}</h3>
+        {% if item1_record.body %}
+        <div class="item-body">{{ item1_record.body|markdown }}</div>
+        {% endif %}
+        <div class="item-meta">
+            {% if item1_record.created_by %}
+            Created by <a href="/user/{{ item1_record.created_by }}">{{ item1_record.created_by }}</a>
+            {% endif %}
+            {% if item1_record.timestamp %}
+            · {{ item1_record.timestamp|relative_time }}
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="item-card">
+        <h3>{{ item2 }}</h3>
+        {% if item2_record.body %}
+        <div class="item-body">{{ item2_record.body|markdown }}</div>
+        {% endif %}
+        <div class="item-meta">
+            {% if item2_record.created_by %}
+            Created by <a href="/user/{{ item2_record.created_by }}">{{ item2_record.created_by }}</a>
+            {% endif %}
+            {% if item2_record.timestamp %}
+            · {{ item2_record.timestamp|relative_time }}
+            {% endif %}
+        </div>
+    </div>
+
+    <h2>All Arguments</h2>
+    <ul class="vote-list">
+        {% for vote in votes %}
+        <li class="vote-item">
+            <div class="vote-comparison">
+                <span class="vote-item-name" style="color: {% if vote.item1 == item1 %}#4CAF50{% else %}#2196F3{% endif %};">
+                    {{ vote.item1 }}
+                </span>
+                <span class="vote-arrow">→</span>
+                <span class="vote-item-name" style="color: {% if vote.item2 == item1 %}#4CAF50{% else %}#2196F3{% endif %};">
+                    {{ vote.item2 }}
+                </span>
+            </div>
+            <div class="vote-slider-container">
+                {% set total = vote.ratio_left + vote.ratio_right %}
+                {% set percentage = (vote.ratio_left / total * 100)|int %}
+                <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value="{{ percentage }}"
+                    class="vote-slider"
+                    disabled
+                >
+                <div class="vote-ratio">
+                    {{ vote.ratio_left }}:{{ vote.ratio_right }}
+                    ({{ vote.item1 }} {{ percentage }}% preferred)
+                </div>
+            </div>
+            {% if vote.explanation %}
+            <div class="vote-explanation">{{ vote.explanation|markdown }}</div>
+            {% endif %}
+            <div class="vote-meta">
+                {% if vote.user_email %}
+                by <a href="/user/{{ vote.user_email }}">{{ vote.user_email }}</a>
+                {% endif %}
+                {% if vote.timestamp %}
+                · {{ vote.timestamp|relative_time }}
+                {% endif %}
+                {% if vote.attribute %}
+                · attribute: {{ vote.attribute }}
+                {% endif %}
+                {% if vote.source_filename %}
+                · <a href="/emails/{{ vote.source_filename }}" target="_blank">view email</a>
+                {% endif %}
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <div class="no-votes">
+        <p>No votes yet between these items.</p>
+        <p>Be the first to cast a vote!</p>
+    </div>
+    {% endif %}
+</body>
+</html>

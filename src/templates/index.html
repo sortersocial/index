@@ -14,7 +14,7 @@
     <p class="stats">Emails processed: {{ count }}</p>
 
     <div class="action-buttons">
-        <a href="mailto:about@mail.sorter.social?subject=New Submission&body={{ ('#hashtag\n-item-name { description }')|urlencode }}" class="button">
+        <a href="mailto:about@mail.sorter.social?subject=New Submission&body={{ ('#hashtag\n\n/item-name { description }')|urlencode }}" class="button">
             Quick Submit
         </a>
     </div>
