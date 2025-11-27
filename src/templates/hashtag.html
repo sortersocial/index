@@ -55,7 +55,7 @@
             {% endif %}
             <div class="item-meta">
                 {% if record.created_by %}
-                Created by {{ record.created_by }}
+                Created by <a href="/user/{{ record.created_by }}">{{ record.created_by }}</a>
                 {% endif %}
                 {% if record.timestamp %}
                 · {{ record.timestamp|relative_time }}
