@@ -74,7 +74,11 @@
         </div>
         <div class="email-header-item">
             <span class="email-header-label">From:</span>
-            <span>{{ from_email or "unknown" }}</span>
+            {% if from_email %}
+            <a href="/user/{{ from_email }}">{{ from_email }}</a>
+            {% else %}
+            <span>unknown</span>
+            {% endif %}
         </div>
         <div class="email-header-item">
             <span class="email-header-label">Timestamp:</span>
@@ -126,9 +130,13 @@
                     {% endif %}
 
                 {% elif stmt.__class__.__name__ == "Vote" %}
-                    <strong>{{ stmt.item1 }}</strong>
-                    <span style="color: #999;">{{ stmt.ratio_left }}:{{ stmt.ratio_right }}</span>
-                    <strong>{{ stmt.item2 }}</strong>
+                    {% set canonical_item1 = [stmt.item1, stmt.item2]|sort|first %}
+                    {% set canonical_item2 = [stmt.item1, stmt.item2]|sort|last %}
+                    <a href="/compare/{{ canonical_item1 }}/vs/{{ canonical_item2 }}">
+                        <strong>{{ stmt.item1 }}</strong>
+                        <span style="color: #999;">{{ stmt.ratio_left }}:{{ stmt.ratio_right }}</span>
+                        <strong>{{ stmt.item2 }}</strong>
+                    </a>
                     {% if stmt.explanation %}
                     <div style="margin-top: 5px; color: #666; font-style: italic;">"{{ stmt.explanation[:100] }}{% if stmt.explanation|length > 100 %}...{% endif %}"</div>
                     {% endif %}
