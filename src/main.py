@@ -505,6 +505,12 @@ async def view_user(request: Request, user_email: str):
 async def compare_items(request: Request, item1: str, item2: str):
     """View comparison between two specific items with all votes and arguments"""
     from src.reducer import State
+    from starlette.responses import RedirectResponse
+
+    # Canonicalize URL: always sort items alphabetically
+    if item1 > item2:
+        canonical_url = f"/compare/{item2}/vs/{item1}"
+        return RedirectResponse(url=canonical_url, status_code=301)
 
     async with reducer_lock:
         # Get the item records

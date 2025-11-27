@@ -1,0 +1,30 @@
+make sure you can vote on things you haven't created in your actual message.
+  it needs to look up items from current state.
+
+specific pair/item pages (history, debate)
+
+check that ratios are positive numbers, not just nonzero
+
+forwarding flow needs to be good. maybe ccs are by default  private? or just forwards can explain things.
+idk. need to explore
+
+make the lark grammar and the blockmasker work together. don't keep track of bracket nesting in the grammar..
+
+iron out the attribute system. 
+
+add user filter dropdown/parameter to view pages (datastar? idiomorph?)
+
+fix GRAMMAR_DOC
+
+fix email responding bug
+## Rankings (Top 9)
+
+1. collective (new)
+2. a (new)
+3. transitive (new)
+4. precise (new)
+5. asynchronous (new)
+6. b (new)
+7. c (new)
+8. new (new)
+9. proprietary (new)

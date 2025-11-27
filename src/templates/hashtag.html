@@ -73,10 +73,14 @@
     <ul class="vote-list">
         {% for vote in votes %}
         <li class="vote-item">
+            {% set canonical_item1 = [vote.item1, vote.item2]|sort|first %}
+            {% set canonical_item2 = [vote.item1, vote.item2]|sort|last %}
             <div class="vote-comparison">
-                <span class="vote-item-name">{{ vote.item1 }}</span>
-                <span class="vote-arrow">→</span>
-                <span class="vote-item-name">{{ vote.item2 }}</span>
+                <a href="/compare/{{ canonical_item1 }}/vs/{{ canonical_item2 }}">
+                    <span class="vote-item-name">{{ vote.item1 }}</span>
+                    <span class="vote-arrow">→</span>
+                    <span class="vote-item-name">{{ vote.item2 }}</span>
+                </a>
             </div>
             <div class="vote-slider-container">
                 {% set total = vote.ratio_left + vote.ratio_right %}
