@@ -501,6 +501,63 @@ async def view_user(request: Request, user_email: str):
     })
 
 
+@app.get("/compare/{item1}/vs/{item2}", response_class=HTMLResponse)
+async def compare_items(request: Request, item1: str, item2: str):
+    """View comparison between two specific items with all votes and arguments"""
+    from src.reducer import State
+
+    async with reducer_lock:
+        # Get the item records
+        item1_record = reducer.state.items.get(item1)
+        item2_record = reducer.state.items.get(item2)
+
+        if not item1_record or not item2_record:
+            return templates.TemplateResponse("error.html", {
+                "request": request,
+                "message": f"One or both items not found: {item1}, {item2}"
+            }, status_code=404)
+
+        # Find all votes between these two items (in either direction)
+        comparison_votes = [
+            vote for vote in reducer.state.votes
+            if (vote.item1 == item1 and vote.item2 == item2) or
+               (vote.item1 == item2 and vote.item2 == item1)
+        ]
+
+        # Calculate aggregate preference
+        item1_preference = 0.0
+        item2_preference = 0.0
+
+        for vote in comparison_votes:
+            if vote.item1 == item1:
+                # Vote is item1 vs item2
+                item1_preference += vote.ratio_left
+                item2_preference += vote.ratio_right
+            else:
+                # Vote is item2 vs item1
+                item2_preference += vote.ratio_left
+                item1_preference += vote.ratio_right
+
+        total_votes = item1_preference + item2_preference
+        item1_percentage = int((item1_preference / total_votes * 100)) if total_votes > 0 else 50
+
+        # Find common hashtags
+        common_hashtags = set(item1_record.hashtags) & set(item2_record.hashtags)
+
+    return templates.TemplateResponse("compare.html", {
+        "request": request,
+        "item1": item1,
+        "item2": item2,
+        "item1_record": item1_record,
+        "item2_record": item2_record,
+        "votes": comparison_votes,
+        "item1_preference": item1_preference,
+        "item2_preference": item2_preference,
+        "item1_percentage": item1_percentage,
+        "common_hashtags": common_hashtags,
+    })
+
+
 @app.get("/hashtag/{hashtag_name}", response_class=HTMLResponse)
 async def view_hashtag(request: Request, hashtag_name: str):
     """View items under a specific hashtag, ranked"""
@@ -644,6 +701,16 @@ async def postmark_webhook(email: PostmarkInboundEmail):
         # Parsing or semantic validation failed
         parse_error_message = str(e)
         logger.warning(f"Parse error from {email.From}: {parse_error_message}")
+
+        # Save the problematic email for debugging
+        try:
+            debug_timestamp = int(__import__('time').time() * 1000)
+            debug_filename = f"debug_{debug_timestamp}_{email.From.replace('@', '_at_')}.txt"
+            debug_path = storage.DATA_DIR / debug_filename
+            debug_path.write_text(f"Subject: {email.Subject}\n\nBody:\n{email.TextBody}", encoding="utf-8")
+            logger.info(f"Saved problematic email to {debug_filename}")
+        except Exception as debug_err:
+            logger.error(f"Failed to save debug email: {debug_err}")
 
     # 3. Send Auto-Reply
     if not postmark:
