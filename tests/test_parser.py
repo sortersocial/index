@@ -240,13 +240,37 @@ class TestReducer:
         doc1 = parser.parse("#ideas\n/item1 { body }")
         reducer.process_document(doc1)
 
-        # Second document: same item under #work
+        # Second document: same item under #work (no body)
         doc2 = parser.parse("#work\n/item1")
         reducer.process_document(doc2)
 
         item = reducer.state.items["item1"]
         assert "ideas" in item.hashtags
         assert "work" in item.hashtags
+
+    def test_redeclare_with_body_errors(self, parser, reducer):
+        # First document: item with body
+        doc1 = parser.parse("#ideas\n/item1 { original body }")
+        reducer.process_document(doc1)
+
+        # Second document: try to redeclare with different body
+        doc2 = parser.parse("#ideas\n/item1 { new body }")
+        with pytest.raises(ParseError, match="already exists with a body"):
+            reducer.process_document(doc2)
+
+    def test_redeclare_without_body_allows_cross_tagging(self, parser, reducer):
+        # First document: item with body
+        doc1 = parser.parse("#ideas\n/item1 { body }")
+        reducer.process_document(doc1)
+
+        # Second document: same item different hashtag, no body
+        doc2 = parser.parse("#work\n/item1")
+        reducer.process_document(doc2)
+
+        item = reducer.state.items["item1"]
+        assert "ideas" in item.hashtags
+        assert "work" in item.hashtags
+        assert item.body == "body"
 
 
 class TestComplexScenarios:

@@ -122,11 +122,14 @@ class Reducer:
 
         # Check if item already exists
         if item.title in self.state.items:
-            # Add current hashtag to existing item
-            self.state.items[item.title].hashtags.add(self.current_hashtag)
-            # Update body if provided
+            # Error if trying to redeclare with a body (bodies are immutable)
             if item.body:
-                self.state.items[item.title].body = item.body
+                raise ParseError(
+                    f"Item '{item.title}' already exists with a body. "
+                    "Bodies are immutable. To add to another hashtag, use: /{item.title}"
+                )
+            # Add current hashtag to existing item (cross-tagging)
+            self.state.items[item.title].hashtags.add(self.current_hashtag)
         else:
             # Create new item
             self.state.items[item.title] = ItemRecord(
