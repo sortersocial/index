@@ -85,8 +85,17 @@
         {% endif %}
     </div>
 
+    {% set base_url = "/compare/" + item1 + "/vs/" + item2 %}
+    {% include "_attribute_selector.html" %}
+
+    {% if current_attribute %}
+    <p style="text-align: center; color: #666;">
+        Comparing by <strong>:{{ current_attribute }}</strong>
+    </p>
+    {% endif %}
+
     <div class="action-buttons" style="text-align: center;">
-        <a href="mailto:about@mail.sorter.social?subject={{ ('Compare: ' + item1 + ' vs ' + item2)|urlencode }}&body={{ ('/' + item1 + ' > /' + item2 + ' { why ' + item1 + ' is better }')|urlencode }}" class="button">
+        <a href="mailto:about@mail.sorter.social?subject={{ ('Compare: ' + item1 + ' vs ' + item2)|urlencode }}&body={{ (':' + (current_attribute or 'overall') + '\n/' + item1 + ' > /' + item2 + ' { why ' + item1 + ' is better }')|urlencode }}" class="button">
             Cast Your Vote
         </a>
     </div>

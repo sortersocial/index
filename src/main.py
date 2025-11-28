@@ -502,14 +502,17 @@ async def view_user(request: Request, user_email: str):
 
 
 @app.get("/compare/{item1}/vs/{item2}", response_class=HTMLResponse)
-async def compare_items(request: Request, item1: str, item2: str):
+async def compare_items(request: Request, item1: str, item2: str, attribute: str = None):
     """View comparison between two specific items with all votes and arguments"""
     from src.reducer import State
     from starlette.responses import RedirectResponse
+    from collections import Counter
 
     # Canonicalize URL: always sort items alphabetically
     if item1 > item2:
         canonical_url = f"/compare/{item2}/vs/{item1}"
+        if attribute:
+            canonical_url += f"?attribute={attribute}"
         return RedirectResponse(url=canonical_url, status_code=301)
 
     async with reducer_lock:
@@ -524,11 +527,26 @@ async def compare_items(request: Request, item1: str, item2: str):
             }, status_code=404)
 
         # Find all votes between these two items (in either direction)
-        comparison_votes = [
+        all_comparison_votes = [
             vote for vote in reducer.state.votes
-            if (vote.item1 == item1 and vote.item2 == item2) or
-               (vote.item1 == item2 and vote.item2 == item1)
+            if ((vote.item1 == item1 and vote.item2 == item2) or
+                (vote.item1 == item2 and vote.item2 == item1))
+            and vote.attribute is not None
         ]
+
+        # Discover available attributes and their vote counts
+        attribute_counts = Counter(vote.attribute for vote in all_comparison_votes)
+        available_attributes = sorted(attribute_counts.items(), key=lambda x: x[1], reverse=True)
+
+        # If no attribute specified, use the one with most votes
+        if attribute is None and available_attributes:
+            attribute = available_attributes[0][0]
+
+        # Filter votes by selected attribute
+        comparison_votes = [
+            vote for vote in all_comparison_votes
+            if vote.attribute == attribute
+        ] if attribute else []
 
         # Calculate aggregate preference
         item1_preference = 0.0
@@ -557,6 +575,8 @@ async def compare_items(request: Request, item1: str, item2: str):
         "item1_record": item1_record,
         "item2_record": item2_record,
         "votes": comparison_votes,
+        "available_attributes": available_attributes,
+        "current_attribute": attribute,
         "item1_preference": item1_preference,
         "item2_preference": item2_preference,
         "item1_percentage": item1_percentage,
