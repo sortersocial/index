@@ -1,2 +1,0 @@
--- dbmate automatically manages this file
--- Do not edit it manually, use dbmate migrations instead

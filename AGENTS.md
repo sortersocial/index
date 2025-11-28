@@ -11,22 +11,6 @@ pip install -e .                           # Install dependencies using pip
 cp .env.example .env                        # Create environment file from template
 ```
 
-## Database (dbmate)
-
-```bash
-brew install dbmate                         # Install dbmate on macOS
-sudo curl -fsSL -o /usr/local/bin/dbmate https://github.com/amacneil/dbmate/releases/latest/download/dbmate-linux-amd64 && sudo chmod +x /usr/local/bin/dbmate  # Install dbmate on Linux
-scoop install dbmate                        # Install dbmate on Windows
-export DATABASE_URL="sqlite:///path/to/database.db"     # Set database connection string
-dbmate new create_table_name                # Create a new migration file
-dbmate up                                   # Run all pending migrations
-dbmate down                                 # Rollback the last migration
-dbmate status                               # Show migration status
-dbmate dump                                 # Dump the database schema
-dbmate drop                                 # Drop the database
-dbmate create                               # Create the database
-```
-
 ## Running Applications
 
 ```bash
@@ -45,7 +29,6 @@ fly logs                                    # View application logs
 fly ssh console                             # SSH into the running instance
 fly status                                  # Check application status
 fly scale count 1                           # Scale machines
-fly secrets set DATABASE_URL="sqlite:///path/to/database.db"  # Set environment secrets
 fly certs add index.sorter.social           # Add custom domain certificate
 fly open                                    # Open the deployed app in browser
 ```

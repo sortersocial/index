@@ -19,21 +19,6 @@ Voting. Voting on the shape of folksonomy is one of the main ways people enjoy i
 I was thinking the slugs only update every night, or morning. The changes in the folksonomy ownership graph (which user owns which tag) are collected as a daily morning digest.
 
 the rank centrality is for ranking the items in side the folkosnomy tags. curators fight for slugs by making good collections, 95% of users (aspirationally, we don't have any users yet) just view rankings/vote on the curated sets
-CREATE TABLE slug_endorsements (
-  slug text NOT NULL,
-  entity_ns text NOT NULL,
-  entity_pk text NOT NULL,
-  user_id uuid REFERENCES users(id) NOT NULL,
-  endorsed_at timestamp DEFAULT now(),
-  PRIMARY KEY (slug, user_id)
-  -- Each user can endorse ONE collection per slug
-);
-
--- Daily resolution
-SELECT slug, entity_ns, entity_pk, COUNT(*) as endorsements
-FROM slug_endorsements
-GROUP BY slug, entity_ns, entity_pk
-ORDER BY slug, endorsements DESC;
 
 I was thinking of using simple majority voting for the folksonomy membership, but ranking the items _within_ the folksonomy tags Using pairwise comparisons.
 
