@@ -16,54 +16,87 @@
     </div>
 
     <h1>#{{ hashtag }}</h1>
+
+    {% if available_attributes %}
+    <div style="margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 8px;">
+        <strong>View by attribute:</strong>
+        {% for attr, count in available_attributes %}
+        {% if attr == current_attribute %}
+        <span style="padding: 4px 12px; background: #4a90e2; color: white; border-radius: 4px; margin: 0 4px;">:{{ attr }}</span>
+        {% else %}
+        <a href="/hashtag/{{ hashtag }}?attribute={{ attr }}" style="padding: 4px 12px; background: white; border: 1px solid #ddd; border-radius: 4px; margin: 0 4px; text-decoration: none; color: #333;">:{{ attr }}</a>
+        {% endif %}
+        <span style="color: #999; font-size: 0.9em;">({{ count }})</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if current_attribute %}
     <p class="stats">
-        {{ items|length }} items
+        Ranking by <strong>:{{ current_attribute }}</strong>
         {% if vote_count is defined %}
         · {{ vote_count }} votes
         {% endif %}
     </p>
+    {% endif %}
 
     <div class="action-buttons">
         <a href="mailto:about@mail.sorter.social?subject={{ ('Add to #' + hashtag)|urlencode }}&body={{ ('#' + hashtag + '\n\n/item-name { description }')|urlencode }}" class="button">
             Add Item
         </a>
-        {% if items|length >= 2 %}
-        <a href="mailto:about@mail.sorter.social?subject={{ ('Vote on #' + hashtag)|urlencode }}&body={{ ('#' + hashtag + '\n\n/' + items[0][0] + ' > /' + items[1][0] + ' { explanation }')|urlencode }}" class="button">
-            Quick Vote
-        </a>
-        {% endif %}
     </div>
 
-    {% if items %}
-    <ol class="item-list">
-        {% for title, record, rank_info in items %}
-        <li>
-            <div>
-                <span class="item-rank">#{{ rank_info[0] }}</span>
-                <span class="item-title">{{ title }}</span>
-                <span style="color: #999; font-size: 0.9em; margin-left: 8px;">
-                    (score: {{ "%.4f"|format(rank_info[1]) }})
-                </span>
-                {% if loop.index > 1 %}
-                <a href="mailto:about@mail.sorter.social?subject={{ ('Vote on #' + hashtag)|urlencode }}&body={{ ('#' + hashtag + '\n\n/' + title + ' > /' + items[0][0] + ' { why ' + title + ' is better }')|urlencode }}" class="button-small">
-                    Compare with #1
-                </a>
-                {% endif %}
-            </div>
-            {% if record.body %}
-            <div class="item-body">{{ record.body|markdown }}</div>
+    {% if components %}
+        {% if components|length > 1 %}
+        <div style="margin: 20px 0; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
+            <strong>⚠️ Disconnected Groups:</strong> Found {{ components|length }} separate groups. Items in different groups haven't been compared yet.
+            <a href="mailto:about@mail.sorter.social?subject={{ ('Bridge vote for #' + hashtag)|urlencode }}&body={{ ('#' + hashtag + '\n\n' + ':' + (current_attribute or 'overall') + '\n/item1 > /item2')|urlencode }}">Vote to connect them!</a>
+        </div>
+        {% endif %}
+
+        {% for component in components %}
+            {% if components|length > 1 %}
+            <h3 style="margin-top: 30px; color: #666;">Group {{ component.id + 1 }}</h3>
             {% endif %}
-            <div class="item-meta">
-                {% if record.created_by %}
-                Created by <a href="/user/{{ record.created_by }}">{{ record.created_by }}</a>
-                {% endif %}
-                {% if record.timestamp %}
-                · {{ record.timestamp|relative_time }}
-                {% endif %}
-            </div>
-        </li>
+
+            <ol class="item-list" {% if components|length > 1 %}start="1"{% endif %}>
+                {% for title, score, rank, record in component.items %}
+                <li>
+                    <div>
+                        <span class="item-rank">#{{ rank }}</span>
+                        <span class="item-title">{{ title }}</span>
+                        <span style="color: #999; font-size: 0.9em; margin-left: 8px;">
+                            (score: {{ "%.4f"|format(score) }})
+                        </span>
+                    </div>
+                    {% if record.body %}
+                    <div class="item-body">{{ record.body|markdown }}</div>
+                    {% endif %}
+                    <div class="item-meta">
+                        {% if record.created_by %}
+                        Created by <a href="/user/{{ record.created_by }}">{{ record.created_by }}</a>
+                        {% endif %}
+                        {% if record.timestamp %}
+                        · {{ record.timestamp|relative_time }}
+                        {% endif %}
+                    </div>
+                </li>
+                {% endfor %}
+            </ol>
         {% endfor %}
-    </ol>
+    {% elif items %}
+        <ol class="item-list">
+            {% for title, record in items %}
+            <li>
+                <div>
+                    <span class="item-title">{{ title }}</span>
+                </div>
+                {% if record.body %}
+                <div class="item-body">{{ record.body|markdown }}</div>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ol>
     {% else %}
     <p class="no-items">No items yet under this hashtag.</p>
     {% endif %}

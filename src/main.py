@@ -638,13 +638,17 @@ async def view_hashtag(request: Request, hashtag_name: str, attribute: str = Non
             for comp_id, items in sorted(components_dict.items())
         ]
 
+    # Filter votes by current attribute for display
+    attribute_votes = [v for v in hashtag_votes if v.attribute == attribute] if attribute else []
+
     return templates.TemplateResponse("hashtag.html", {
         "request": request,
         "hashtag": hashtag_name,
         "available_attributes": available_attributes,
         "current_attribute": attribute,
         "components": components,
-        "vote_count": len([v for v in hashtag_votes if v.attribute == attribute])
+        "votes": attribute_votes,
+        "vote_count": len(attribute_votes)
     })
 
 
