@@ -60,7 +60,7 @@
             {% endif %}
 
             <ol class="item-list" {% if components|length > 1 %}start="1"{% endif %}>
-                {% for title, score, rank, record in component.items %}
+                {% for title, score, rank, record in component["items"] %}
                 <li>
                     <div>
                         <span class="item-rank">#{{ rank }}</span>
