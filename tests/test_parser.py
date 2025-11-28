@@ -206,7 +206,7 @@ class TestReducer:
         assert "ideas" in reducer.state.items["item1"].hashtags
 
     def test_vote_requires_existing_items(self, parser, reducer):
-        doc = parser.parse("/item1 10:1 /item2")
+        doc = parser.parse(":overall\n/item1 10:1 /item2")
         with pytest.raises(ParseError, match="item does not exist"):
             reducer.process_document(doc)
 
@@ -215,6 +215,7 @@ class TestReducer:
 #ideas
 /item1 { first }
 /item2 { second }
+:overall
 /item1 10:1 /item2
 """)
         reducer.process_document(doc)
@@ -331,6 +332,7 @@ class TestEdgeCases:
 #ideas
 /a { first }
 /b { second }
+:overall
 /a 0:1 /b
 """)
         with pytest.raises(ParseError, match="cannot contain 0"):
@@ -368,6 +370,7 @@ class TestEdgeCases:
 #ideas
 /item1 { first }
 /item2 { second }
+:overall
 /item1 > /item2
 """)
         reducer.process_document(doc, timestamp="2024-01-01", user_email="alice@example.com")
@@ -385,6 +388,7 @@ class TestEdgeCases:
 #ideas
 /a { first }
 /b { second }
+:overall
 /a > /b
 /a > /b
 """)

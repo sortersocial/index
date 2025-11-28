@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import numpy as np
 import scipy, random, itertools, sys
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Set, Dict
 
 # For analysis purposes we track the number of iterations until convergence.
 global total_iters
@@ -61,6 +61,72 @@ def rank_centrality(A, tol=1e-8, max_iters=100000):
     total_iters += iter + 1
     return scores
 
+
+def tarjans_scc(adjacency_matrix: np.ndarray) -> List[List[int]]:
+    """
+    Find strongly connected components using Tarjan's algorithm.
+
+    Args:
+        adjacency_matrix: n x n matrix where A[i,j] > 0 indicates edge from i to j
+
+    Returns:
+        List of strongly connected components, each component is a list of node indices.
+        Components are returned in reverse topological order.
+    """
+    n = adjacency_matrix.shape[0]
+
+    # Build adjacency list from matrix
+    adj_list: Dict[int, List[int]] = {i: [] for i in range(n)}
+    for i in range(n):
+        for j in range(n):
+            if adjacency_matrix[i, j] > 0 and i != j:
+                adj_list[i].append(j)
+
+    # Tarjan's algorithm state
+    index_counter = [0]
+    stack: List[int] = []
+    lowlink: Dict[int, int] = {}
+    index: Dict[int, int] = {}
+    on_stack: Set[int] = set()
+    components: List[List[int]] = []
+
+    def strongconnect(v: int):
+        # Set the depth index for v to the smallest unused index
+        index[v] = index_counter[0]
+        lowlink[v] = index_counter[0]
+        index_counter[0] += 1
+        stack.append(v)
+        on_stack.add(v)
+
+        # Consider successors of v
+        for w in adj_list[v]:
+            if w not in index:
+                # Successor w has not yet been visited; recurse on it
+                strongconnect(w)
+                lowlink[v] = min(lowlink[v], lowlink[w])
+            elif w in on_stack:
+                # Successor w is in stack and hence in the current SCC
+                lowlink[v] = min(lowlink[v], index[w])
+
+        # If v is a root node, pop the stack and create an SCC
+        if lowlink[v] == index[v]:
+            component = []
+            while True:
+                w = stack.pop()
+                on_stack.remove(w)
+                component.append(w)
+                if w == v:
+                    break
+            components.append(component)
+
+    # Find SCCs for all nodes
+    for v in range(n):
+        if v not in index:
+            strongconnect(v)
+
+    return components
+
+
 def add_comparison(i, j, A):
     """
     Adds a comparison between nodes i and j to the comparison matrix A by
@@ -113,30 +179,70 @@ def run_test(n, extra_comparisons):
         print(f'{i}: {scores[i]:.4f} ({scaled_score:.4f})')
 
 
-def compute_rankings_from_state(state) -> List[Tuple[str, float, int]]:
+def compute_rankings_from_state(
+    state,
+    hashtag: str,
+    attribute: str
+) -> List[Tuple[str, float, int, int]]:
     """
-    Compute rankings from a reducer State object.
+    Compute rankings from a reducer State object for a specific hashtag and attribute.
+
+    Rankings are computed per-hashtag per-attribute. Items are filtered by hashtag,
+    votes are filtered by attribute. The graph is analyzed for strongly connected
+    components, and each component is ranked separately.
 
     Args:
         state: A State object from the reducer with items and votes
+        hashtag: The hashtag to filter items by
+        attribute: The attribute to filter votes by
 
     Returns:
-        List of (item_title, score, rank) tuples sorted by rank (best first)
-        Returns empty list if no items or no votes
+        List of (item_title, score, rank, component_id) tuples sorted by component
+        and rank within component (best first). Returns empty list if no items or votes.
+
+        component_id groups items that have been compared (directly or transitively).
+        Items with different component_ids have never been compared and thus cannot
+        be ranked relative to each other.
     """
     from src.reducer import State
 
     if not state.items:
         return []
 
+    # Filter items by hashtag
+    filtered_items = {
+        title: record
+        for title, record in state.items.items()
+        if hashtag in record.hashtags
+    }
+
+    if not filtered_items:
+        return []
+
+    # Filter votes by attribute and ensure both items are in filtered set
+    filtered_votes = [
+        vote for vote in state.votes
+        if vote.attribute == attribute
+        and vote.item1 in filtered_items
+        and vote.item2 in filtered_items
+    ]
+
+    if not filtered_votes:
+        # No votes for this attribute/hashtag combination
+        # All items are unranked singletons
+        return [
+            (title, 1.0 / len(filtered_items), 1, i)
+            for i, title in enumerate(sorted(filtered_items.keys()))
+        ]
+
     # Build mapping from item titles to indices
-    item_titles = sorted(state.items.keys())
+    item_titles = sorted(filtered_items.keys())
     title_to_idx = {title: i for i, title in enumerate(item_titles)}
     n = len(item_titles)
 
-    # Build comparison matrix from votes
+    # Build comparison matrix from filtered votes
     A = np.zeros((n, n))
-    for vote in state.votes:
+    for vote in filtered_votes:
         i = title_to_idx[vote.item1]
         j = title_to_idx[vote.item2]
         # Vote says item1 is better than item2 with ratio_left:ratio_right
@@ -145,25 +251,47 @@ def compute_rankings_from_state(state) -> List[Tuple[str, float, int]]:
         A[j, i] += vote.ratio_left
         A[i, j] += vote.ratio_right
 
-    # Check if we have any votes
-    if not state.votes:
-        # No votes - all items tie
-        return [(title, 1.0 / n, 1) for title in item_titles]
+    # Find strongly connected components
+    components = tarjans_scc(A)
 
-    # Compute rankings
-    try:
-        scores = rank_centrality(A)
-    except Exception:
-        # If ranking fails (disconnected graph, etc), return items unranked
-        return [(title, 1.0 / n, 1) for title in item_titles]
-
-    # Sort by score (high to low) and assign ranks
-    sorted_indices = sorted(range(n), key=lambda i: scores[i], reverse=True)
+    # Rank each component separately
     results = []
-    for rank, idx in enumerate(sorted_indices, start=1):
-        title = item_titles[idx]
-        score = scores[idx]
-        results.append((title, score, rank))
+    for component_id, component_indices in enumerate(components):
+        if len(component_indices) == 1:
+            # Singleton component - single item with no comparisons
+            idx = component_indices[0]
+            title = item_titles[idx]
+            results.append((title, 1.0, 1, component_id))
+        else:
+            # Multi-item component - compute rankings
+            # Build subgraph for this component
+            component_size = len(component_indices)
+            idx_map = {old_idx: new_idx for new_idx, old_idx in enumerate(component_indices)}
+            A_sub = np.zeros((component_size, component_size))
+
+            for i, old_i in enumerate(component_indices):
+                for j, old_j in enumerate(component_indices):
+                    A_sub[i, j] = A[old_i, old_j]
+
+            # Compute rankings for this component
+            try:
+                scores = rank_centrality(A_sub)
+            except Exception:
+                # If ranking fails, assign equal scores
+                scores = np.ones(component_size) / component_size
+
+            # Sort by score within component
+            sorted_component_indices = sorted(
+                range(component_size),
+                key=lambda i: scores[i],
+                reverse=True
+            )
+
+            for rank, sub_idx in enumerate(sorted_component_indices, start=1):
+                original_idx = component_indices[sub_idx]
+                title = item_titles[original_idx]
+                score = scores[sub_idx]
+                results.append((title, score, rank, component_id))
 
     return results
 

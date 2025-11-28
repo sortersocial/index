@@ -151,7 +151,15 @@ class Reducer:
         """Process vote between items.
 
         Both items must exist (no forward references).
+        An attribute context must be set before voting.
         """
+        # Validate attribute context exists
+        if self.current_attribute is None:
+            raise ParseError(
+                f"Cannot vote without attribute context. "
+                "Use an attribute declaration (e.g., :impact, :feasibility) before voting."
+            )
+
         # Validate items exist
         if vote.item1 not in self.state.items:
             raise ParseError(
@@ -239,12 +247,14 @@ if __name__ == "__main__":
     from src.parser import EmailDSLParser
     from src.rank import compute_rankings_from_state
 
-    if len(sys.argv) < 2:
-        print("usage: python -m src.reducer <file.sorter> [hashtag]")
+    if len(sys.argv) < 4:
+        print("usage: python -m src.reducer <file.sorter> <hashtag> <attribute>")
+        print("\nExample: python -m src.reducer ideas.txt ideas impact")
         sys.exit(1)
 
     file_path = Path(sys.argv[1])
-    hashtag = sys.argv[2] if len(sys.argv) > 2 else None
+    hashtag = sys.argv[2]
+    attribute = sys.argv[3]
 
     # Parse file
     content = file_path.read_text(encoding="utf-8")
@@ -253,18 +263,44 @@ if __name__ == "__main__":
 
     # Reduce
     reducer = Reducer()
-    reducer.process_document(doc, timestamp="0", user_email="cli")
-
-    # Filter by hashtag if specified
-    if hashtag:
-        items = {t: r for t, r in reducer.state.items.items() if hashtag in r.hashtags}
-        votes = [v for v in reducer.state.votes if v.item1 in items and v.item2 in items]
-        state = State(items=items, votes=votes)
-    else:
-        state = reducer.state
+    try:
+        reducer.process_document(doc, timestamp="0", user_email="cli")
+    except ParseError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
 
     # Rank and print
-    rankings = compute_rankings_from_state(state)
+    rankings = compute_rankings_from_state(
+        reducer.state,
+        hashtag=hashtag,
+        attribute=attribute
+    )
 
-    for title, score, rank in rankings:
-        print(f"{rank}. {title} ({score:.4f})")
+    if not rankings:
+        print(f"No rankings found for #{hashtag} with attribute :{attribute}")
+        sys.exit(0)
+
+    # Group by component for display
+    from itertools import groupby
+
+    rankings_by_component = {}
+    for title, score, rank, comp_id in rankings:
+        if comp_id not in rankings_by_component:
+            rankings_by_component[comp_id] = []
+        rankings_by_component[comp_id].append((title, score, rank))
+
+    # Print results
+    print(f"Rankings for #{hashtag} by :{attribute}\n")
+
+    if len(rankings_by_component) == 1:
+        # Single component - simple display
+        for title, score, rank in rankings_by_component[0]:
+            print(f"{rank}. {title} ({score:.4f})")
+    else:
+        # Multiple components - show separately
+        print(f"Found {len(rankings_by_component)} disconnected groups:\n")
+        for comp_id, items in sorted(rankings_by_component.items()):
+            print(f"Component {comp_id + 1}:")
+            for title, score, rank in items:
+                print(f"  {rank}. {title} ({score:.4f})")
+            print()

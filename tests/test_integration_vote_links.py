@@ -15,6 +15,7 @@ def test_vote_has_source_filename():
     email_body = """#ideas
 /task1 { first item }
 /task2 { second item }
+:overall
 /task1 > /task2 { task1 is better }
 """
 
@@ -48,6 +49,7 @@ def test_vote_without_filename():
     email_body = """#ideas
 /task1
 /task2
+:overall
 /task1 > /task2
 """
 
@@ -80,6 +82,7 @@ def test_multiple_votes_different_files():
     email1 = """#ideas
 /a
 /b
+:overall
 /a > /b
 """
     doc1 = parser.parse_lines(email1)
@@ -93,6 +96,7 @@ def test_multiple_votes_different_files():
     # Second email
     email2 = """#ideas
 /c
+:overall
 /a > /c
 """
     doc2 = parser.parse_lines(email2)
@@ -125,6 +129,7 @@ def test_html_rendering_includes_link():
     email_body = """#test
 /item1
 /item2
+:overall
 /item1 > /item2
 """
 

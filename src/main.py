@@ -565,9 +565,10 @@ async def compare_items(request: Request, item1: str, item2: str):
 
 
 @app.get("/hashtag/{hashtag_name}", response_class=HTMLResponse)
-async def view_hashtag(request: Request, hashtag_name: str):
-    """View items under a specific hashtag, ranked"""
+async def view_hashtag(request: Request, hashtag_name: str, attribute: str = None):
+    """View items under a specific hashtag, ranked by attribute"""
     from src.reducer import State
+    from collections import Counter
 
     # Acquire lock for consistent read of reducer state
     async with reducer_lock:
@@ -583,7 +584,9 @@ async def view_hashtag(request: Request, hashtag_name: str):
                 "request": request,
                 "hashtag": hashtag_name,
                 "items": [],
-                "rankings": []
+                "available_attributes": [],
+                "current_attribute": None,
+                "components": []
             })
 
         # Filter votes to only votes between items in this hashtag
@@ -591,33 +594,57 @@ async def view_hashtag(request: Request, hashtag_name: str):
         hashtag_votes = [
             vote for vote in reducer.state.votes
             if vote.item1 in hashtag_item_titles and vote.item2 in hashtag_item_titles
+            and vote.attribute is not None
         ]
 
-        # Create a filtered state with only this hashtag's items and votes
-        filtered_state = State(
-            items=items_in_hashtag,
-            votes=hashtag_votes
+        # Discover available attributes and their vote counts
+        attribute_counts = Counter(vote.attribute for vote in hashtag_votes)
+        available_attributes = sorted(attribute_counts.items(), key=lambda x: x[1], reverse=True)
+
+        # If no attribute specified, use the one with most votes
+        if attribute is None and available_attributes:
+            attribute = available_attributes[0][0]
+
+        # If still no attribute (no votes at all), show empty state
+        if attribute is None:
+            return templates.TemplateResponse("hashtag.html", {
+                "request": request,
+                "hashtag": hashtag_name,
+                "items": list(items_in_hashtag.items()),
+                "available_attributes": [],
+                "current_attribute": None,
+                "components": []
+            })
+
+        # Compute rankings for this hashtag and attribute
+        hashtag_rankings = compute_rankings_from_state(
+            reducer.state,
+            hashtag=hashtag_name,
+            attribute=attribute
         )
 
-        # Compute rankings ONLY on this hashtag's data
-        hashtag_rankings = compute_rankings_from_state(filtered_state)
+        # Group by component
+        from collections import defaultdict
+        components_dict = defaultdict(list)
+        for title, score, rank, comp_id in hashtag_rankings:
+            components_dict[comp_id].append((title, score, rank, items_in_hashtag[title]))
 
-        # Build rank map
-        rank_map = {title: (rank, score) for title, score, rank in hashtag_rankings}
-
-        # Sort items by their rank
-        items_with_ranks = [
-            (title, record, rank_map.get(title, (999999, 0.0)))
-            for title, record in items_in_hashtag.items()
+        # Convert to list of components for template
+        components = [
+            {
+                "id": comp_id,
+                "items": items
+            }
+            for comp_id, items in sorted(components_dict.items())
         ]
-        items_with_ranks.sort(key=lambda x: x[2][0])  # Sort by rank
 
     return templates.TemplateResponse("hashtag.html", {
         "request": request,
         "hashtag": hashtag_name,
-        "items": items_with_ranks,
-        "votes": hashtag_votes,
-        "vote_count": len(hashtag_votes)
+        "available_attributes": available_attributes,
+        "current_attribute": attribute,
+        "components": components,
+        "vote_count": len([v for v in hashtag_votes if v.attribute == attribute])
     })
 
 
@@ -656,21 +683,11 @@ async def postmark_webhook(email: PostmarkInboundEmail):
 
             # Acquire lock to prevent concurrent modifications to reducer state
             async with reducer_lock:
-                # Filter to items in mentioned hashtags BEFORE processing
-                if mentioned_hashtags:
-                    before_items = {
-                        title: record
-                        for title, record in reducer.state.items.items()
-                        if any(tag in record.hashtags for tag in mentioned_hashtags)
-                    }
-                    before_votes = [
-                        vote for vote in reducer.state.votes
-                        if vote.item1 in before_items and vote.item2 in before_items
-                    ]
-                    before_state = State(items=before_items, votes=before_votes)
-                    rankings_before = compute_rankings_from_state(before_state)
-                else:
-                    rankings_before = []
+                # TODO: Before/after ranking comparison disabled pending attribute-aware implementation
+                # The new ranking model requires (hashtag, attribute) pairs, but emails may
+                # mention multiple hashtags and attributes. Need to redesign this feature.
+                rankings_before = []
+                rankings_after = []
 
                 # 2. Persist to Disk BEFORE processing (so we have filename)
                 # Use the same timestamp for consistency
@@ -680,24 +697,8 @@ async def postmark_webhook(email: PostmarkInboundEmail):
                     timestamp=current_timestamp
                 )
 
-                # Run semantic validation (reducer checks hashtag context, forward refs, zero ratios)
+                # Run semantic validation (reducer checks hashtag context, forward refs, zero ratios, attributes)
                 reducer.process_document(doc, user_email=email.From, timestamp=str(current_timestamp), source_filename=filename)
-
-                # Filter to items in mentioned hashtags AFTER processing
-                if mentioned_hashtags:
-                    after_items = {
-                        title: record
-                        for title, record in reducer.state.items.items()
-                        if any(tag in record.hashtags for tag in mentioned_hashtags)
-                    }
-                    after_votes = [
-                        vote for vote in reducer.state.votes
-                        if vote.item1 in after_items and vote.item2 in after_items
-                    ]
-                    after_state = State(items=after_items, votes=after_votes)
-                    rankings_after = compute_rankings_from_state(after_state)
-                else:
-                    rankings_after = []
 
             GLOBAL_STATE["email_count"] += 1
             logger.info(f"Successfully parsed and stored email from {email.From}")

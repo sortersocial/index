@@ -51,8 +51,8 @@ def test_tutorial_sorter_parses():
     # Should have multiple votes
     assert len(votes) >= 8, f"Should have at least 8 votes, got {len(votes)}"
 
-    # Should have 2 attribute declarations: :truth and :important
-    assert len(attributes) == 2, f"Should have 2 attribute declarations, got {len(attributes)}"
+    # Should have 3 attribute declarations: :overall, :truth and :important
+    assert len(attributes) == 3, f"Should have 3 attribute declarations, got {len(attributes)}"
 
     print("\n✓ Tutorial file parsed successfully!")
 
@@ -92,15 +92,18 @@ def test_tutorial_with_reducer():
     assert "Transitive is the property" in reducer.state.items["transitive"].body
 
     # Check votes have attributes
+    votes_with_overall = [v for v in reducer.state.votes if v.attribute == "overall"]
     votes_with_truth = [v for v in reducer.state.votes if v.attribute == "truth"]
     votes_with_important = [v for v in reducer.state.votes if v.attribute == "important"]
 
+    assert len(votes_with_overall) >= 2, "Should have votes with :overall attribute"
     assert len(votes_with_truth) >= 3, "Should have votes with :truth attribute"
     assert len(votes_with_important) >= 4, "Should have votes with :important attribute"
 
     print(f"\n✓ Tutorial processed successfully!")
     print(f"  Total items: {len(reducer.state.items)}")
     print(f"  Total votes: {len(reducer.state.votes)}")
+    print(f"  Votes with :overall: {len(votes_with_overall)}")
     print(f"  Votes with :truth: {len(votes_with_truth)}")
     print(f"  Votes with :important: {len(votes_with_important)}")
 

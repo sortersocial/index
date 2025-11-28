@@ -16,9 +16,10 @@ We are in a tag, now let's declare an item.
 /b
 
 The prefix character / denotes, when the first character on a line, the beginning of the title of an item.
-Now we have two discrete, addressable items. Imagine two dots floating on a 2d plane. 
+Now we have two discrete, addressable items. Imagine two dots floating on a 2d plane.
 Now let's draw a line segment between the two dots.
 
+:overall
 /a 2:1 /b
 
 
