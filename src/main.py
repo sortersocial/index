@@ -14,9 +14,10 @@ import humanize
 import httpx
 from postmarker.core import PostmarkClient
 from src import storage
-from src.parser import EmailDSLParser, Hashtag
+from src.parser import EmailDSLParser, Hashtag, Document
 from src.reducer import Reducer, ParseError
 from src.rank import compute_rankings_from_state
+from src.render import render_email_body
 from lark.exceptions import LarkError
 
 # Configure logging
@@ -117,6 +118,7 @@ app.mount("/static", StaticFiles(directory="src/static"), name="static")
 # Add custom filters to Jinja2
 templates.env.filters["relative_time"] = format_relative_time
 templates.env.filters["markdown"] = format_markdown
+templates.env.filters["format_email_body"] = render_email_body
 
 # Initialize Postmark client
 postmark_token = os.getenv("POSTMARK_SERVER_TOKEN")

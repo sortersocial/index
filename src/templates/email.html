@@ -24,9 +24,91 @@
             background: white;
             padding: 20px;
             border: 1px solid #ddd;
+            line-height: 1.6;
+        }
+        .email-body .prose {
+            margin: 1em 0;
+            line-height: 1.6;
+        }
+        .syntax-hashtag {
+            margin: 1.5em 0 1em 0;
+            padding: 8px 12px;
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        .syntax-hashtag a {
+            color: #1976d2;
+            text-decoration: none;
+        }
+        .syntax-hashtag a:hover {
+            text-decoration: underline;
+        }
+        .syntax-attribute {
+            display: inline-block;
+            padding: 4px 8px;
+            margin: 2px;
+            background: #fff3e0;
+            border: 1px solid #ff9800;
+            border-radius: 3px;
+            color: #e65100;
             font-family: monospace;
-            white-space: pre-wrap;
-            line-height: 1.5;
+            font-size: 0.9em;
+        }
+        .syntax-line {
+            margin: 0.5em 0;
+        }
+        .syntax-item {
+            margin: 1em 0;
+            padding: 15px;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .syntax-item .item-title {
+            font-family: monospace;
+            font-weight: bold;
+            font-size: 1.1em;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .syntax-item .item-body {
+            padding: 10px;
+            background: white;
+            border-radius: 3px;
+            line-height: 1.6;
+        }
+        .syntax-vote {
+            margin: 0.8em 0;
+            padding: 10px 15px;
+            background: #f9f9f9;
+            border-left: 3px solid #4caf50;
+            border-radius: 3px;
+        }
+        .syntax-vote .vote-link {
+            font-family: monospace;
+            text-decoration: none;
+            color: inherit;
+            font-weight: 500;
+        }
+        .syntax-vote .vote-link:hover {
+            color: #4caf50;
+        }
+        .syntax-vote .vote-item {
+            color: #1976d2;
+        }
+        .syntax-vote .vote-comparison {
+            padding: 0 8px;
+            color: #666;
+            font-weight: bold;
+        }
+        .syntax-vote .vote-explanation {
+            margin-top: 8px;
+            padding-left: 10px;
+            color: #666;
+            font-style: italic;
+            border-left: 2px solid #ddd;
         }
         .parsed-content {
             margin-top: 20px;
@@ -93,7 +175,7 @@
     </div>
 
     <h2>Email Body</h2>
-    <div class="email-body linked-text">{{ body }}</div>
+    <div class="email-body">{{ body|format_email_body }}</div>
 
     {% if parsed and doc %}
     <div class="parsed-content">

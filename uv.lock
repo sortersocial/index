@@ -151,6 +151,7 @@ dependencies = [
     { name = "numpy" },
     { name = "postmarker" },
     { name = "pytest" },
+    { name = "python-hiccup" },
     { name = "python-slugify" },
     { name = "scipy" },
     { name = "uvicorn", extra = ["standard"] },
@@ -167,6 +168,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.0.0" },
     { name = "postmarker", specifier = ">=1.0.0" },
     { name = "pytest", specifier = ">=7.0.0" },
+    { name = "python-hiccup", specifier = ">=0.4.0" },
     { name = "python-slugify", specifier = ">=8.0.0" },
     { name = "scipy", specifier = ">=1.14.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30.0" },
@@ -646,6 +648,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f0/26/19cadc79a718c5edbec86fd4919a6b6d3f681039a2f6d66d14be94e75fb9/python_dotenv-1.2.1.tar.gz", hash = "sha256:42667e897e16ab0d66954af0e60a9caa94f0fd4ecf3aaf6d2d260eec1aa36ad6", size = 44221, upload-time = "2025-10-26T15:12:10.434Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/14/1b/a298b06749107c305e1fe0f814c6c74aea7b2f1e10989cb30f544a1b3253/python_dotenv-1.2.1-py3-none-any.whl", hash = "sha256:b81ee9561e9ca4004139c6cbba3a238c32b03e4894671e181b671e8cb8425d61", size = 21230, upload-time = "2025-10-26T15:12:09.109Z" },
+]
+
+[[package]]
+name = "python-hiccup"
+version = "0.4.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3a/7c/4c3bedb2b4a2be54b5ae4073bd232360d4a60d85cc1a66a31331f16e9a9a/python_hiccup-0.4.0.tar.gz", hash = "sha256:15fdfa062a45b57238f3d69626f2179d08adb864114317c6fa1b01257eeebf85", size = 19401, upload-time = "2025-09-07T16:02:01.673Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fa/05/628c7bc3cca816ca1a8473a2c8940d24525618ca8ef9b92e89d5ab99fbe7/python_hiccup-0.4.0-py3-none-any.whl", hash = "sha256:2c817351f01040a4d1a2be49e2aec62221d7db583f495d2f7d87329a497d4f66", size = 6148, upload-time = "2025-09-07T16:02:00.801Z" },
 ]
 
 [[package]]
