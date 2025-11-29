@@ -45,6 +45,15 @@
     font-size: 0.95em;
 }
 
+.item-body a {
+    color: #0066cc;
+    text-decoration: none;
+}
+
+.item-body a:hover {
+    text-decoration: underline;
+}
+
 .item-meta {
     color: #999;
     font-size: 0.85em;

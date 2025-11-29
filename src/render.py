@@ -99,7 +99,7 @@ def _render_prose(prose: Prose) -> Optional[List]:
     Email clients often break lines at ~72 chars, so we:
     - Split by double newlines to find paragraph breaks
     - Collapse single newlines within paragraphs
-    - Preserve intentional formatting
+    - Render with markdown for links and basic formatting
     """
     if not prose.text.strip():
         return None
@@ -113,7 +113,13 @@ def _render_prose(prose: Prose) -> Optional[List]:
             # Collapse single newlines within paragraph
             # (email clients break lines at ~72 chars)
             collapsed = ' '.join(line.strip() for line in para.split('\n') if line.strip())
-            elements.append(['p', {'class': 'prose'}, collapsed])
+
+            # Render with markdown to support links (no nl2br - already collapsed email wrapping)
+            para_html = markdown.markdown(collapsed)
+            # Remove the <p> tags that markdown adds (we'll add our own)
+            para_html = re.sub(r'^<p>|</p>$', '', para_html.strip())
+
+            elements.append(['p', {'class': 'prose'}, raw(para_html)])
 
     # Return a fragment container if multiple paragraphs, single p if one
     if len(elements) == 1:
@@ -140,7 +146,7 @@ def _render_item(item: Item) -> List:
     ]
 
     if item.body:
-        # Render body with markdown
+        # Render body with markdown (no nl2br - email clients insert unwanted newlines)
         body_html = markdown.markdown(
             item.body,
             extensions=['fenced_code', 'codehilite'],
@@ -183,8 +189,12 @@ def _render_vote(vote: Vote) -> List:
     ]
 
     if vote.explanation:
+        # Render explanation with markdown (no nl2br - email clients insert unwanted newlines)
+        explanation_html = markdown.markdown(vote.explanation)
+        # Remove <p> tags that markdown adds
+        explanation_html = re.sub(r'^<p>|</p>$', '', explanation_html.strip())
         children.append(
-            ['div', {'class': 'vote-explanation'}, vote.explanation]
+            ['div', {'class': 'vote-explanation'}, raw(explanation_html)]
         )
 
     return ['div', {'class': 'syntax-vote'}, *children]

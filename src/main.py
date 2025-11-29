@@ -33,14 +33,18 @@ GLOBAL_STATE = {
 
 
 def format_markdown(text: Optional[str]) -> str:
-    """Convert markdown to HTML with syntax highlighting."""
+    """Convert markdown to HTML with syntax highlighting.
+
+    Note: No nl2br extension - email clients insert unwanted newlines.
+    Users should use double newlines for paragraph breaks.
+    """
     if not text:
         return ""
     import markdown
     from markupsafe import Markup
     html = markdown.markdown(
         text,
-        extensions=['fenced_code', 'codehilite', 'nl2br'],
+        extensions=['fenced_code', 'codehilite'],
         extension_configs={
             'codehilite': {
                 'css_class': 'highlight',

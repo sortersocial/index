@@ -100,6 +100,15 @@
     font-style: italic;
 }
 
+.vote-explanation a {
+    color: #0066cc;
+    text-decoration: none;
+}
+
+.vote-explanation a:hover {
+    text-decoration: underline;
+}
+
 /* Mobile responsive vote styles */
 @media (max-width: 640px) {
     .vote-item {
