@@ -23,7 +23,6 @@
         .email-body {
             background: white;
             padding: 20px;
-            border: 1px solid #ddd;
             line-height: 1.6;
         }
         .email-body .prose {
@@ -34,7 +33,6 @@
             margin: 1.5em 0 1em 0;
             padding: 8px 12px;
             background: #e3f2fd;
-            border-left: 4px solid #2196f3;
             font-weight: bold;
             font-size: 1.1em;
         }
@@ -50,8 +48,6 @@
             padding: 4px 8px;
             margin: 2px;
             background: #fff3e0;
-            border: 1px solid #ff9800;
-            border-radius: 3px;
             color: #e65100;
             font-family: monospace;
             font-size: 0.9em;
@@ -63,8 +59,6 @@
             margin: 1em 0;
             padding: 15px;
             background: #f5f5f5;
-            border: 1px solid #ddd;
-            border-radius: 5px;
         }
         .syntax-item .item-title {
             font-family: monospace;
@@ -74,17 +68,14 @@
             margin-bottom: 10px;
         }
         .syntax-item .item-body {
-            padding: 10px;
-            background: white;
-            border-radius: 3px;
             line-height: 1.6;
+            padding-left: 10px;
+            border-left: 2px solid #ddd;
         }
         .syntax-vote {
             margin: 0.8em 0;
             padding: 10px 15px;
             background: #f9f9f9;
-            border-left: 3px solid #4caf50;
-            border-radius: 3px;
         }
         .syntax-vote .vote-link {
             font-family: monospace;
@@ -109,22 +100,6 @@
             color: #666;
             font-style: italic;
             border-left: 2px solid #ddd;
-        }
-        .parsed-content {
-            margin-top: 20px;
-            padding: 20px;
-            background: #f9f9f9;
-        }
-        .statement {
-            margin: 10px 0;
-            padding: 10px;
-            background: white;
-            border-left: 3px solid #007bff;
-        }
-        .statement-type {
-            font-weight: bold;
-            color: #666;
-            font-size: 0.9em;
         }
         .linked-text a {
             color: #007bff;
@@ -176,55 +151,5 @@
 
     <h2>Email Body</h2>
     <div class="email-body">{{ body|format_email_body }}</div>
-
-    {% if parsed and doc %}
-    <div class="parsed-content">
-        <h2>Parsed Statements</h2>
-        {% for stmt in doc.statements %}
-            {% if stmt %}
-            <div class="statement">
-                <span class="statement-type">
-                    {% if stmt.__class__.__name__ == "Hashtag" %}
-                    📌 Hashtag
-                    {% elif stmt.__class__.__name__ == "Item" %}
-                    📝 Item
-                    {% elif stmt.__class__.__name__ == "Vote" %}
-                    🗳️ Vote
-                    {% elif stmt.__class__.__name__ == "Attribute" %}
-                    🏷️ Attribute
-                    {% else %}
-                    {{ stmt.__class__.__name__ }}
-                    {% endif %}
-                </span>
-
-                {% if stmt.__class__.__name__ == "Hashtag" %}
-                    <a href="/hashtag/{{ stmt.name }}">#{{ stmt.name }}</a>
-
-                {% elif stmt.__class__.__name__ == "Item" %}
-                    <strong>{{ stmt.title }}</strong>
-                    {% if stmt.body %}
-                    <div style="margin-top: 5px; color: #666;">{{ stmt.body[:100] }}{% if stmt.body|length > 100 %}...{% endif %}</div>
-                    {% endif %}
-
-                {% elif stmt.__class__.__name__ == "Vote" %}
-                    {% set canonical_item1 = [stmt.item1, stmt.item2]|sort|first %}
-                    {% set canonical_item2 = [stmt.item1, stmt.item2]|sort|last %}
-                    <a href="/compare/{{ canonical_item1 }}/vs/{{ canonical_item2 }}">
-                        <strong>{{ stmt.item1 }}</strong>
-                        <span style="color: #999;">{{ stmt.ratio_left }}:{{ stmt.ratio_right }}</span>
-                        <strong>{{ stmt.item2 }}</strong>
-                    </a>
-                    {% if stmt.explanation %}
-                    <div style="margin-top: 5px; color: #666; font-style: italic;">"{{ stmt.explanation[:100] }}{% if stmt.explanation|length > 100 %}...{% endif %}"</div>
-                    {% endif %}
-
-                {% elif stmt.__class__.__name__ == "Attribute" %}
-                    :{{ stmt.name }}
-                {% endif %}
-            </div>
-            {% endif %}
-        {% endfor %}
-    </div>
-    {% endif %}
 </body>
 </html>
