@@ -52,6 +52,13 @@ class Email:
 
 
 @dataclass
+class Prose:
+    """Non-DSL text (preserved for rendering)"""
+
+    text: str
+
+
+@dataclass
 class Document:
     """Parsed email document"""
 
@@ -353,3 +360,60 @@ class EmailDSLParser:
         # 4. Transform and unmask at AST level
         transformer = EmailDSLTransformer(masker)
         return transformer.transform(tree)
+
+    def parse_full(self, text: str) -> Document:
+        """Parse EmailDSL preserving prose for rendering.
+
+        Unlike parse_lines(), this captures ALL content including non-DSL text,
+        wrapping it in Prose nodes. Downstream consumers can filter as needed:
+        - Evaluator: filters to DSL-only for processing votes/items
+        - Renderer: uses all nodes to display complete document
+
+        Strategy:
+        1. Mask blocks to protect bodies
+        2. Parse line-by-line, classifying as DSL or prose
+        3. Return Document with interleaved Prose and DSL nodes
+        """
+        masker = BlockMasker()
+
+        # Mask hierarchy of blocks
+        text = masker.mask(text, "```", "```")
+        text = masker.mask(text, "{{", "}}")
+        text = masker.mask(text, "{", "}")
+
+        statements = []
+        prose_buffer = []
+
+        for line in text.split("\n"):
+            stripped = line.lstrip()
+
+            # Check if line is DSL command
+            if stripped and stripped[0] in "#:/@!":
+                # Flush prose buffer first
+                if prose_buffer:
+                    prose_text = "\n".join(prose_buffer)
+                    # Unmask prose text to restore original content
+                    prose_text = masker.unmask(prose_text)
+                    statements.append(Prose(text=prose_text))
+                    prose_buffer = []
+
+                # Parse DSL line
+                try:
+                    tree = self.parser.parse(line)
+                    transformer = EmailDSLTransformer(masker)
+                    doc = transformer.transform(tree)
+                    statements.extend(doc.statements)
+                except Exception:
+                    # Parse failed, treat as prose
+                    prose_buffer.append(line)
+            else:
+                # Not a DSL line, add to prose buffer
+                prose_buffer.append(line)
+
+        # Final flush
+        if prose_buffer:
+            prose_text = "\n".join(prose_buffer)
+            prose_text = masker.unmask(prose_text)
+            statements.append(Prose(text=prose_text))
+
+        return Document(statements=statements)

@@ -7,15 +7,15 @@ import re
 import markdown
 from markupsafe import Markup
 from python_hiccup.html.core import render as hiccup_render, raw
-from src.parser import Document, Hashtag, Item, Vote, Attribute
+from src.parser import Document, Hashtag, Item, Vote, Attribute, Prose
 
 
 def render_email_body(body: str, doc: Optional[Document] = None) -> str:
     """
     Render email body with intelligent formatting:
-    - Parse sorter syntax using the real parser
-    - Collapse single newlines in prose, preserve double newlines as paragraphs
+    - Parse sorter syntax using the real parser with full prose capture
     - Render sorter syntax elements with styled HTML
+    - Render prose with collapsed line breaks and paragraph detection
     - Render item bodies with markdown
 
     Args:
@@ -34,71 +34,18 @@ def render_email_body(body: str, doc: Optional[Document] = None) -> str:
     if doc is None:
         parser = EmailDSLParser()
         try:
-            doc = parser.parse_lines(body)
+            # Use parse_full to capture both DSL and prose
+            doc = parser.parse_full(body)
         except Exception:
             # If parsing fails, just return the body as plain text paragraphs
             return _render_plain_prose(body)
 
-    # Split body into lines for processing
-    lines = body.split('\n')
-
-    # Build a mapping of line indices to parsed statements
-    # We'll match syntax lines to their corresponding statements
-    syntax_line_indices = set()
-    line_to_statement = {}
-
-    for i, line in enumerate(lines):
-        stripped = line.lstrip()
-        if stripped and stripped[0] in '#:/@!':
-            syntax_line_indices.add(i)
-
-    # Match statements to lines (approximate - based on line order)
-    statement_idx = 0
-    for i in syntax_line_indices:
-        if statement_idx < len(doc.statements):
-            stmt = doc.statements[statement_idx]
-            if stmt is not None:
-                line_to_statement[i] = stmt
-            statement_idx += 1
-
-    # Now render, processing both syntax lines and prose
+    # Render each statement in order (much simpler now!)
     elements = []
-    prose_buffer = []
-
-    def flush_prose():
-        """Flush accumulated prose lines as paragraphs."""
-        if not prose_buffer:
-            return
-
-        # Join and split by double newlines to find paragraphs
-        text = '\n'.join(prose_buffer)
-        paragraphs = re.split(r'\n\s*\n', text)
-
-        for para in paragraphs:
-            if para.strip():
-                # Collapse single newlines within paragraph
-                collapsed = ' '.join(line.strip() for line in para.split('\n') if line.strip())
-                elements.append(['p', {'class': 'prose'}, collapsed])
-
-        prose_buffer.clear()
-
-    # Process each line
-    for i, line in enumerate(lines):
-        if i in line_to_statement:
-            # Flush any accumulated prose
-            flush_prose()
-
-            # Render the parsed statement
-            stmt = line_to_statement[i]
-            element = _render_statement(stmt, line)
-            if element:
-                elements.append(element)
-        elif i not in syntax_line_indices:
-            # Regular prose line
-            prose_buffer.append(line)
-
-    # Flush remaining prose
-    flush_prose()
+    for stmt in doc.statements:
+        element = _render_statement(stmt)
+        if element:
+            elements.append(element)
 
     # Convert to HTML using hiccup and mark as safe
     return Markup(hiccup_render(['div', {'class': 'rendered-email-body'}, *elements]))
@@ -117,18 +64,19 @@ def _render_plain_prose(body: str) -> str:
     return Markup(hiccup_render(['div', {'class': 'rendered-email-body'}, *elements]))
 
 
-def _render_statement(stmt, original_line: str) -> Optional[List]:
+def _render_statement(stmt) -> Optional[List]:
     """
     Render a parsed statement as a hiccup-style element.
 
     Args:
-        stmt: Parsed statement (Hashtag, Item, Vote, Attribute, etc.)
-        original_line: Original line from email (for fallback rendering)
+        stmt: Parsed statement (Prose, Hashtag, Item, Vote, Attribute, etc.)
 
     Returns:
         Hiccup-style element (list) or None
     """
-    if isinstance(stmt, Hashtag):
+    if isinstance(stmt, Prose):
+        return _render_prose(stmt)
+    elif isinstance(stmt, Hashtag):
         return _render_hashtag(stmt)
     elif isinstance(stmt, Item):
         return _render_item(stmt)
@@ -140,8 +88,40 @@ def _render_statement(stmt, original_line: str) -> Optional[List]:
         # Attribute declarations return lists of Attribute objects
         return _render_attributes(stmt)
     else:
-        # Unknown statement type - render as plain text
-        return ['div', {'class': 'syntax-line'}, original_line]
+        # Unknown statement type - skip
+        return None
+
+
+def _render_prose(prose: Prose) -> Optional[List]:
+    """
+    Render prose text with paragraph detection and line break collapsing.
+
+    Email clients often break lines at ~72 chars, so we:
+    - Split by double newlines to find paragraph breaks
+    - Collapse single newlines within paragraphs
+    - Preserve intentional formatting
+    """
+    if not prose.text.strip():
+        return None
+
+    # Split by double newlines to find paragraphs
+    paragraphs = re.split(r'\n\s*\n', prose.text)
+    elements = []
+
+    for para in paragraphs:
+        if para.strip():
+            # Collapse single newlines within paragraph
+            # (email clients break lines at ~72 chars)
+            collapsed = ' '.join(line.strip() for line in para.split('\n') if line.strip())
+            elements.append(['p', {'class': 'prose'}, collapsed])
+
+    # Return a fragment container if multiple paragraphs, single p if one
+    if len(elements) == 1:
+        return elements[0]
+    elif elements:
+        return ['div', {'class': 'prose-block'}, *elements]
+    else:
+        return None
 
 
 def _render_hashtag(hashtag: Hashtag) -> List:
