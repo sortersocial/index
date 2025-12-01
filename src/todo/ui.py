@@ -109,32 +109,44 @@ def layout(content):
     ])
 
 
-def create_form():
-    """Form to create a new todo list."""
+def create_form(conversations=None):
+    """Form to create a new chat session."""
+    if conversations is None:
+        conversations = []
+
+    # Build conversation list
+    conv_list = []
+    if conversations:
+        conv_list = [
+            ['h3', {'style': 'margin-top: 40px; margin-bottom: 10px;'}, 'Recent Conversations'],
+            ['ul', {'class': 'email-list', 'style': 'list-style: none; padding: 0;'},
+                *[
+                    ['li', {'style': 'margin-bottom: 8px;'},
+                        ['a', {'href': f"/todo/{conv['id']}", 'style': 'text-decoration: none;'},
+                            ['div', {'style': 'padding: 10px; background: #f5f5f5; border-radius: 4px; display: flex; justify-content: space-between;'},
+                                ['span', f"Conversation {conv['id'][:8]}... ({conv['item_count']} items)"],
+                                ['span', {'style': 'color: #999; font-size: 0.9em;'}, conv['model'].split('/')[-1]]
+                            ]
+                        ]
+                    ] for conv in conversations[:10]  # Show last 10
+                ]
+            ]
+        ]
+
     return [
-        'div', {'class': 'item-card', 'style': 'max-width: 600px; margin: 0 auto;'},
-        ['h1', 'AI Todo Sorter'],
-        ['p', 'Paste your todo list, define a criteria, and watch AI rank it live.'],
+        'div', {'class': 'item-card', 'style': 'max-width: 600px; margin: 0 auto; margin-top: 10vh;'},
+        ['h1', 'Chat with Sorter'],
+        ['p', 'Start a conversation with an AI that thinks in SorterDSL. As you chat, it will help you organize and prioritize your thoughts.'],
         ['div', {
-            'data-store': '{"items": "", "criteria": "Urgency", "model": "anthropic/claude-3.5-haiku"}'
+            'data-store': '{"message": "", "model": "anthropic/claude-3.5-haiku"}'
         },
             ['div', {'class': 'form-group'},
-                ['label', 'Items (one per line):'],
-                # Note: textarea needs content (even if empty string won't work in hiccup)
-                # Using a comment or space to force proper closing tag
+                ['label', 'Start the conversation:'],
                 ['textarea', {
-                    'style': 'height: 150px;',
-                    'data-bind': 'items',
-                    'placeholder': 'Fix critical bug, Write documentation, Refactor code, ...'
-                }, ' ']  # Space to force closing tag
-            ],
-            ['div', {'class': 'form-group'},
-                ['label', 'Sorting Criteria:'],
-                ['input', {
-                    'type': 'text',
-                    'data-bind': 'criteria',
-                    'placeholder': 'e.g., Urgency, Difficulty, Impact'
-                }]
+                    'style': 'height: 120px;',
+                    'data-bind': 'message',
+                    'placeholder': 'e.g., "I need to plan my weekend", "Help me prioritize my tasks", "Add buy milk and eggs"'
+                }, ' ']
             ],
             ['div', {'class': 'form-group'},
                 ['label', 'Model:'],
@@ -147,9 +159,10 @@ def create_form():
             ['button', {
                 'class': 'button',
                 'data-on:click': "@post('/todo/create')",
-                'data-attr-disabled': "!$items.trim()"
-            }, 'Start Sorting']
-        ]
+                'data-attr-disabled': "!$message.trim()"
+            }, 'Start Chat']
+        ],
+        *conv_list
     ]
 
 
@@ -255,9 +268,13 @@ def vote_update_fragment(item1, item2, reason):
     ])
 
 
-def chat_view(list_id, history_html, rankings_html, meta):
+def chat_view(list_id, history_hiccup, rankings_hiccup, meta):
     """
     Split view: Chat on left, Rankings on right.
+
+    Args:
+        history_hiccup: Hiccup data structure (not HTML string)
+        rankings_hiccup: Hiccup data structure (not HTML string)
     """
     return [
         'div', {'class': 'chat-container', 'style': 'display: flex; gap: 20px; height: 85vh;'},
@@ -266,7 +283,7 @@ def chat_view(list_id, history_html, rankings_html, meta):
         ['div', {'class': 'chat-panel', 'style': 'flex: 2; display: flex; flex-direction: column; border-right: 1px solid #ddd; padding-right: 20px;'},
             ['h2', 'Chat with Sorter'],
             ['div', {'id': 'chat-history', 'style': 'flex: 1; overflow-y: auto; padding-bottom: 20px; margin-bottom: 20px;'},
-                history_html
+                history_hiccup
             ],
 
             # Input Area
@@ -298,14 +315,19 @@ def chat_view(list_id, history_html, rankings_html, meta):
         ['div', {'class': 'state-panel', 'style': 'flex: 1; overflow-y: auto; background: #fafafa; padding: 15px; border-radius: 8px;'},
             ['h3', {'style': 'margin-top: 0'}, 'Live State'],
             ['div', {'id': 'rankings-view'},
-                rankings_html
+                rankings_hiccup
             ]
         ]
     ]
 
 
-def message_bubble(role, content_html):
-    """Render a single message bubble."""
+def message_bubble(role, content_hiccup):
+    """Render a single message bubble.
+
+    Args:
+        role: "user" or "ai"
+        content_hiccup: Hiccup data structure (not HTML string)
+    """
     bg_color = "#e3f2fd" if role == "user" else "#f5f5f5"
     align = "flex-end" if role == "user" else "flex-start"
 
@@ -317,14 +339,14 @@ def message_bubble(role, content_html):
         ['div', {
             'style': f'background: {bg_color}; padding: 10px 15px; border-radius: 12px; max-width: 90%; word-wrap: break-word;'
         },
-            content_html
+            content_hiccup
         ],
         ['span', {'style': 'font-size: 0.7em; color: #999; margin-top: 4px;'}, role.title()]
     ])
 
 
 def rankings_fragment(items, meta):
-    """Render just the rankings list (for live updates)."""
+    """Render just the rankings list (returns hiccup data structure)."""
     ranking_items = []
 
     if not items:
@@ -338,10 +360,10 @@ def rankings_fragment(items, meta):
                 ['span', {'class': 'score', 'style': 'color: #999; font-size: 0.9em;'}, f'{score:.2f}']
             ])
 
-    return hiccup_render([
+    return [
         'div', {'id': 'rankings-view'},
         ['div', {'style': 'margin-bottom: 10px; font-size: 0.9em; color: #666;'},
             f"Context: {meta.get('criteria', 'general')}"
         ],
         ['div', {'id': 'rankings-list'}, *ranking_items]
-    ])
+    ]

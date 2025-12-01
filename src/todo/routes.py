@@ -14,27 +14,53 @@ router = APIRouter(prefix="/todo")
 
 @router.get("/", response_class=HTMLResponse)
 async def index():
-    """Show the create form."""
-    return ui.layout(ui.create_form())
+    """Show the create form and list of existing conversations."""
+    # Get all existing conversations
+    import os
+    from pathlib import Path
+
+    conversations = []
+    todo_dir = storage.TODO_DIR
+    if todo_dir.exists():
+        for file in sorted(todo_dir.glob("*.sorter"), key=os.path.getmtime, reverse=True):
+            list_id = file.stem
+            # Get metadata
+            try:
+                state, meta = storage.get_todo_state(list_id)
+                item_count = len(state.items) if state else 0
+                conversations.append({
+                    "id": list_id,
+                    "model": meta.get("model", "unknown") if meta else "unknown",
+                    "item_count": item_count,
+                    "modified": file.stat().st_mtime
+                })
+            except:
+                # Skip corrupted files
+                continue
+
+    return ui.layout(ui.create_form(conversations))
 
 
 @router.post("/create")
 async def create(request: Request):
-    """Create a new todo list and redirect to it."""
+    """Create a new chat session and redirect to it."""
     data = await request.json()
 
     # Extract from datastar signal object if present
     if "datastar" in data:
         data = data["datastar"]
 
-    items = [line.strip() for line in data.get("items", "").split("\n") if line.strip()]
-    criteria = data.get("criteria", "Importance")
+    message = data.get("message", "").strip()
     model = data.get("model", "anthropic/claude-3.5-haiku")
 
-    if not items or len(items) < 2:
-        return HTMLResponse("Need at least 2 items", status_code=400)
+    if not message:
+        return HTMLResponse("Need a message to start", status_code=400)
 
-    list_id = storage.create_todo_list(items, criteria, model)
+    # Create an empty list with default criteria
+    list_id = storage.create_todo_list([], "general", model)
+
+    # Append the initial user message
+    storage.append_raw(list_id, f"\n---USER---\n{message}\n")
 
     # Return SSE event to redirect using datastar-py
     sse = ServerSentEventGenerator()
@@ -47,19 +73,17 @@ async def create(request: Request):
 @router.get("/{list_id}", response_class=HTMLResponse)
 async def view_chat(list_id: str):
     """View the chat interface."""
-    from src.render import render_email_body
+    from src.render import render_email_body_hiccup
 
     state, meta = storage.get_todo_state(list_id)
     if not state:
         return HTMLResponse("Not found", status_code=404)
 
-    # Render conversation history
+    # Render conversation history as hiccup data
     raw_content = storage.get_file_path(list_id).read_text(encoding="utf-8")
-    # For now, render the whole file as the transcript
-    # The render_email_body will handle DSL highlighting
-    history_html = render_email_body(raw_content)
+    history_hiccup = render_email_body_hiccup(raw_content)
 
-    # Render rankings
+    # Render rankings as hiccup data
     rankings = compute_rankings_from_state(
         state,
         f"todo-{list_id}",
@@ -67,9 +91,9 @@ async def view_chat(list_id: str):
     )
     display_items = [(title, score, rank) for title, score, rank, _ in rankings]
 
-    rankings_html = ui.rankings_fragment(display_items, meta)
+    rankings_hiccup = ui.rankings_fragment(display_items, meta)
 
-    return ui.layout(ui.chat_view(list_id, history_html, rankings_html, meta))
+    return ui.layout(ui.chat_view(list_id, history_hiccup, rankings_hiccup, meta))
 
 
 @router.post("/{list_id}/chat")
@@ -98,6 +122,7 @@ async def chat_interaction(request: Request, list_id: str):
     storage.append_raw(list_id, user_block)
 
     async def stream_response():
+        from src.render import render_email_body_hiccup
         sse = ServerSentEventGenerator()
 
         # Render user bubble (immediate UI feedback)
@@ -132,10 +157,10 @@ async def chat_interaction(request: Request, list_id: str):
         async for chunk in ai_voter.chat_with_ai(current_content, user_message, meta['model']):
             ai_accumulated += chunk
 
-            # Render current accumulation (markdown + DSL highlighting)
-            rendered_content = render_email_body(ai_accumulated)
+            # Render current accumulation as hiccup data
+            rendered_hiccup = render_email_body_hiccup(ai_accumulated)
 
-            bubble_html = ui.message_bubble("ai", rendered_content)
+            bubble_html = ui.message_bubble("ai", rendered_hiccup)
 
             yield sse.patch_elements(
                 elements=bubble_html,
@@ -156,7 +181,8 @@ async def chat_interaction(request: Request, list_id: str):
         )
         display_items = [(title, score, rank) for title, score, rank, _ in new_rankings]
 
-        rankings_html = ui.rankings_fragment(display_items, meta)
+        rankings_hiccup = ui.rankings_fragment(display_items, meta)
+        rankings_html = hiccup_render(rankings_hiccup)
 
         yield sse.patch_elements(
             elements=rankings_html,

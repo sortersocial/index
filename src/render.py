@@ -10,6 +10,42 @@ from python_hiccup.html.core import render as hiccup_render, raw
 from src.parser import Document, Hashtag, Item, Vote, Attribute, Prose
 
 
+def render_email_body_hiccup(body: str, doc: Optional[Document] = None) -> List:
+    """
+    Render email body as hiccup data structure (not HTML string).
+
+    Args:
+        body: Raw email body text
+        doc: Pre-parsed Document (if already parsed), otherwise will parse
+
+    Returns:
+        Hiccup data structure: ['div', {'class': 'rendered-email-body'}, *elements]
+    """
+    from src.parser import EmailDSLParser
+
+    if not body:
+        return ['div', {'class': 'rendered-email-body'}]
+
+    # Parse the document if not provided
+    if doc is None:
+        parser = EmailDSLParser()
+        try:
+            # Use parse_full to capture both DSL and prose
+            doc = parser.parse_full(body)
+        except Exception:
+            # If parsing fails, return plain text paragraphs as hiccup
+            return _render_plain_prose_hiccup(body)
+
+    # Render each statement in order
+    elements = []
+    for stmt in doc.statements:
+        element = _render_statement(stmt)
+        if element:
+            elements.append(element)
+
+    return ['div', {'class': 'rendered-email-body'}, *elements]
+
+
 def render_email_body(body: str, doc: Optional[Document] = None) -> str:
     """
     Render email body with intelligent formatting:
@@ -25,34 +61,13 @@ def render_email_body(body: str, doc: Optional[Document] = None) -> str:
     Returns:
         HTML string with formatted content
     """
-    from src.parser import EmailDSLParser
-
-    if not body:
-        return ""
-
-    # Parse the document if not provided
-    if doc is None:
-        parser = EmailDSLParser()
-        try:
-            # Use parse_full to capture both DSL and prose
-            doc = parser.parse_full(body)
-        except Exception:
-            # If parsing fails, just return the body as plain text paragraphs
-            return _render_plain_prose(body)
-
-    # Render each statement in order (much simpler now!)
-    elements = []
-    for stmt in doc.statements:
-        element = _render_statement(stmt)
-        if element:
-            elements.append(element)
-
-    # Convert to HTML using hiccup and mark as safe
-    return Markup(hiccup_render(['div', {'class': 'rendered-email-body'}, *elements]))
+    # Just render the hiccup structure to HTML
+    hiccup_struct = render_email_body_hiccup(body, doc)
+    return Markup(hiccup_render(hiccup_struct))
 
 
-def _render_plain_prose(body: str) -> str:
-    """Fallback renderer for plain text without syntax."""
+def _render_plain_prose_hiccup(body: str) -> List:
+    """Fallback renderer for plain text without syntax (returns hiccup)."""
     paragraphs = re.split(r'\n\s*\n', body)
     elements = []
 
@@ -61,7 +76,13 @@ def _render_plain_prose(body: str) -> str:
             collapsed = ' '.join(line.strip() for line in para.split('\n') if line.strip())
             elements.append(['p', {'class': 'prose'}, collapsed])
 
-    return Markup(hiccup_render(['div', {'class': 'rendered-email-body'}, *elements]))
+    return ['div', {'class': 'rendered-email-body'}, *elements]
+
+
+def _render_plain_prose(body: str) -> str:
+    """Fallback renderer for plain text without syntax."""
+    hiccup_struct = _render_plain_prose_hiccup(body)
+    return Markup(hiccup_render(hiccup_struct))
 
 
 def _render_statement(stmt) -> Optional[List]:
