@@ -12,7 +12,7 @@ def layout(content):
             ['title', 'AI Todo Sorter'],
             ['script', {
                 'type': 'module',
-                'src': 'https://cdn.jsdelivr.net/npm/@starfederation/datastar@1.0.0-beta.1/dist/datastar.js'
+                'src': 'https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.6/bundles/datastar.js'
             }],
             ['link', {'rel': 'stylesheet', 'href': '/static/css/base.css'}],
             ['link', {'rel': 'stylesheet', 'href': '/static/css/lists.css'}],
@@ -146,7 +146,7 @@ def create_form():
             ],
             ['button', {
                 'class': 'button',
-                'data-on-click': "$post('/todo/create')",
+                'data-on:click': "@post('/todo/create')",
                 'data-attr-disabled': "!$items.trim()"
             }, 'Start Sorting']
         ]
@@ -189,7 +189,7 @@ def ranking_view(list_id, items, meta, vote_log=None, is_streaming=True):
         # Trigger SSE stream on load
         control_panel.append([
             'div', {
-                'data-on-load': f"$get('/todo/{list_id}/stream')",
+                'data-on:load': f"@get('/todo/{list_id}/stream')",
                 'style': 'display:none'
             }
         ])
