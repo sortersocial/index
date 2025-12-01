@@ -124,7 +124,7 @@ def create_form():
                 # Using a comment or space to force proper closing tag
                 ['textarea', {
                     'style': 'height: 150px;',
-                    'data-model': 'items',
+                    'data-bind': 'items',
                     'placeholder': 'Fix critical bug, Write documentation, Refactor code, ...'
                 }, ' ']  # Space to force closing tag
             ],
@@ -132,13 +132,13 @@ def create_form():
                 ['label', 'Sorting Criteria:'],
                 ['input', {
                     'type': 'text',
-                    'data-model': 'criteria',
+                    'data-bind': 'criteria',
                     'placeholder': 'e.g., Urgency, Difficulty, Impact'
                 }]
             ],
             ['div', {'class': 'form-group'},
                 ['label', 'Model:'],
-                ['select', {'data-model': 'model'},
+                ['select', {'data-bind': 'model'},
                     ['option', {'value': 'anthropic/claude-3.5-haiku'}, 'Claude 3.5 Haiku'],
                     ['option', {'value': 'openai/gpt-4o-mini'}, 'GPT-4o Mini'],
                     ['option', {'value': 'meta-llama/llama-3.1-70b-instruct'}, 'Llama 3.1 70B'],
@@ -186,13 +186,6 @@ def ranking_view(list_id, items, meta, vote_log=None, is_streaming=True):
             },
             'AI is analyzing pairs...'
         ]
-        # Trigger SSE stream on load
-        control_panel.append([
-            'div', {
-                'data-on:load': f"@get('/todo/{list_id}/stream')",
-                'style': 'display:none'
-            }
-        ])
     else:
         control_panel = [
             'div', {
@@ -223,10 +216,22 @@ def ranking_view(list_id, items, meta, vote_log=None, is_streaming=True):
             *vote_items
         ]
 
+    # Add SSE trigger as separate element if streaming
+    sse_trigger = []
+    if is_streaming:
+        sse_trigger = [
+            ['div', {
+                'data-init': f"@get('/todo/{list_id}/stream')",
+                'style': 'display:none',
+                'id': 'sse-trigger'
+            }, ' ']
+        ]
+
     return [
         'div', {'id': 'ranking-container'},
         ['h2', f"Sorting by: {meta['criteria']}"],
         ['p', {'style': 'color: #666'}, f"Model: {meta['model']}"],
+        *sse_trigger,  # SSE trigger at top level, not nested
         control_panel,
         ['div', {'id': 'rankings'}, *ranking_items],
         *([vote_log_element] if vote_log_element else [])

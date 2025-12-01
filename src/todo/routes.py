@@ -4,6 +4,7 @@ from typing import AsyncGenerator
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from python_hiccup.html.core import render as hiccup_render
+from datastar_py import ServerSentEventGenerator
 from . import ui, storage, ai_voter
 from src.rank import compute_rankings_from_state
 
@@ -21,6 +22,11 @@ async def index():
 async def create(request: Request):
     """Create a new todo list and redirect to it."""
     data = await request.json()
+
+    # Extract from datastar signal object if present
+    if "datastar" in data:
+        data = data["datastar"]
+
     items = [line.strip() for line in data.get("items", "").split("\n") if line.strip()]
     criteria = data.get("criteria", "Importance")
     model = data.get("model", "anthropic/claude-3.5-haiku")
@@ -30,10 +36,11 @@ async def create(request: Request):
 
     list_id = storage.create_todo_list(items, criteria, model)
 
-    # Datastar redirect (client-side URL change)
-    return HTMLResponse(
-        "",
-        headers={"Datastar-Redirect": f"/todo/{list_id}"}
+    # Return SSE event to redirect using datastar-py
+    sse = ServerSentEventGenerator()
+    return StreamingResponse(
+        iter([sse.execute_script(f"window.location = '/todo/{list_id}'")]),
+        media_type="text/event-stream"
     )
 
 
@@ -118,9 +125,13 @@ async def ai_sorter_stream(list_id: str) -> AsyncGenerator[str, None]:
                 ui.ranking_view(list_id, display_items, meta, vote_log, is_streaming=True)
             )
 
-            # Yield SSE event with full container replacement
-            yield f"event: datastar-fragment\n"
-            yield f"data: {new_html}\n\n"
+            # Use datastar-py to create proper SSE event
+            sse = ServerSentEventGenerator()
+            yield sse.patch_elements(
+                elements=new_html,
+                selector="#ranking-container",
+                mode="outer"  # Replace entire element including wrapper
+            )
 
         # Rate limiting - be polite to API and allow visual updates
         await asyncio.sleep(1.5)
@@ -138,8 +149,12 @@ async def ai_sorter_stream(list_id: str) -> AsyncGenerator[str, None]:
         ui.ranking_view(list_id, display_items, meta, vote_log, is_streaming=False)
     )
 
-    yield f"event: datastar-fragment\n"
-    yield f"data: {final_html}\n\n"
+    sse = ServerSentEventGenerator()
+    yield sse.patch_elements(
+        elements=final_html,
+        selector="#ranking-container",
+        mode="outer"
+    )
 
 
 @router.get("/{list_id}/stream")
