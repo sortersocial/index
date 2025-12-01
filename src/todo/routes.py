@@ -45,23 +45,129 @@ async def create(request: Request):
 
 
 @router.get("/{list_id}", response_class=HTMLResponse)
-async def view_list(list_id: str):
-    """View a todo list (initial render before streaming)."""
+async def view_chat(list_id: str):
+    """View the chat interface."""
+    from src.render import render_email_body
+
     state, meta = storage.get_todo_state(list_id)
     if not state:
         return HTMLResponse("Not found", status_code=404)
 
-    # Initial ranking (all equal scores)
+    # Render conversation history
+    raw_content = storage.get_file_path(list_id).read_text(encoding="utf-8")
+    # For now, render the whole file as the transcript
+    # The render_email_body will handle DSL highlighting
+    history_html = render_email_body(raw_content)
+
+    # Render rankings
     rankings = compute_rankings_from_state(
         state,
         f"todo-{list_id}",
         meta['criteria'].replace(" ", "-")
     )
-
-    # Format for display
     display_items = [(title, score, rank) for title, score, rank, _ in rankings]
 
-    return ui.layout(ui.ranking_view(list_id, display_items, meta, is_streaming=True))
+    rankings_html = ui.rankings_fragment(display_items, meta)
+
+    return ui.layout(ui.chat_view(list_id, history_html, rankings_html, meta))
+
+
+@router.post("/{list_id}/chat")
+async def chat_interaction(request: Request, list_id: str):
+    """
+    Handle chat message:
+    1. Append user msg to file
+    2. Stream back user bubble
+    3. Trigger AI
+    4. Stream AI chunks (and append to file)
+    5. Update rankings side-effect
+    """
+    from src.render import render_email_body
+
+    data = await request.json()
+    if "datastar" in data:
+        data = data["datastar"]
+
+    user_message = data.get("message", "")
+
+    if not user_message.strip():
+        return StreamingResponse(iter([]), media_type="text/event-stream")
+
+    # Append user message to file
+    user_block = f"\n\n---USER---\n{user_message}\n"
+    storage.append_raw(list_id, user_block)
+
+    async def stream_response():
+        sse = ServerSentEventGenerator()
+
+        # Render user bubble (immediate UI feedback)
+        user_html = ui.message_bubble("user", user_message)
+        yield sse.patch_elements(
+            elements=user_html,
+            selector="#chat-history",
+            mode="append"
+        )
+
+        # Get context and stream AI
+        current_content = storage.get_file_path(list_id).read_text(encoding="utf-8")
+        state, meta = storage.get_todo_state(list_id)
+
+        ai_accumulated = ""
+
+        # Start AI bubble (thinking indicator)
+        thinking_html = hiccup_render([
+            'div', {'id': 'ai-typing', 'class': 'message ai', 'style': 'display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 15px;'},
+            ['div', {'style': 'background: #f5f5f5; padding: 10px 15px; border-radius: 12px; max-width: 90%;'},
+                ['em', 'Thinking...']
+            ]
+        ])
+
+        yield sse.patch_elements(
+            elements=thinking_html,
+            selector="#chat-history",
+            mode="append"
+        )
+
+        # Stream AI tokens
+        async for chunk in ai_voter.chat_with_ai(current_content, user_message, meta['model']):
+            ai_accumulated += chunk
+
+            # Render current accumulation (markdown + DSL highlighting)
+            rendered_content = render_email_body(ai_accumulated)
+
+            bubble_html = ui.message_bubble("ai", rendered_content)
+
+            yield sse.patch_elements(
+                elements=bubble_html,
+                selector="#ai-typing",
+                mode="outer"  # Replace the thinking indicator
+            )
+
+        # Commit AI response to file
+        storage.append_raw(list_id, f"\n---AI---\n{ai_accumulated}\n")
+
+        # Update rankings (the side effect!)
+        # Re-parse the file now that AI wrote DSL
+        new_state, _ = storage.get_todo_state(list_id)
+        new_rankings = compute_rankings_from_state(
+            new_state,
+            f"todo-{list_id}",
+            meta['criteria'].replace(" ", "-")
+        )
+        display_items = [(title, score, rank) for title, score, rank, _ in new_rankings]
+
+        rankings_html = ui.rankings_fragment(display_items, meta)
+
+        yield sse.patch_elements(
+            elements=rankings_html,
+            selector="#rankings-view",
+            mode="outer"
+        )
+
+        # Scroll chat to bottom
+        yield sse.execute_script("document.getElementById('chat-history').scrollTop = document.getElementById('chat-history').scrollHeight")
+
+    return StreamingResponse(stream_response(), media_type="text/event-stream")
 
 
 async def ai_sorter_stream(list_id: str) -> AsyncGenerator[str, None]:

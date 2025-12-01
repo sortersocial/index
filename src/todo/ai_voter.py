@@ -1,38 +1,71 @@
-"""AI voting logic for todo sorter."""
+"""AI logic for conversational todo sorter."""
 import os
-import random
+import json
 import httpx
-from src.parser import EmailDSLParser, Vote
-from . import storage
-
+from typing import AsyncGenerator
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
+SYSTEM_PROMPT = """You are Sorter, an intelligent assistant that helps users think and prioritize using SorterDSL.
 
-def make_ai_vote(list_id: str, item1: str, item2: str, criteria: str, model: str) -> str | None:
-    """Ask AI to compare two items and return a DSL vote string.
+Your Goal: Help the user organize their thoughts. As you chat, you must capture the state of the world using DSL commands.
 
-    Returns:
-        DSL vote string if successful, None if failed
+The DSL Syntax:
+- Define items: /item-name { optional description }
+- Context/Criteria: :urgency (or :cost, :impact, etc)
+- Votes: /item1 > /item2 { reason } or /item1 < /item2 or /item1 = /item2
+- Hashtags: #project-name
+
+Important Rules:
+1. Speak naturally to the user in conversational prose.
+2. Interweave DSL commands into your response when the user mentions new tasks or preferences.
+3. If the user is vague, ask clarifying questions or propose a criteria.
+4. If the user says "I like X more than Y", immediately output a vote: `/X > /Y { user preference }`.
+5. If the user mentions a list of things, define them as items with `/item-name`.
+6. Item names MUST be lowercase with hyphens instead of spaces (e.g., /fix-bug not /Fix Bug).
+7. When you write DSL, put it on its own line for clarity.
+
+Example Output:
+"That sounds stressful. Let's capture those tasks.
+
+#launch-party
+
+/book-venue { need capacity for 50 }
+/order-food
+
+Since you said the venue is the bottleneck, let's prioritize that:
+
+:urgency
+
+/book-venue > /order-food { venue availability affects timeline }"
+"""
+
+
+async def chat_with_ai(current_content: str, user_message: str, model: str) -> AsyncGenerator[str, None]:
     """
-    prompt = f"""Compare these two tasks based on this criteria: "{criteria}".
+    Stream a response from the AI based on the current file content and new user message.
 
-Task A: /{item1}
-Task B: /{item2}
+    Args:
+        current_content: The full .sorter file content so far
+        user_message: The latest message from the user
+        model: The AI model to use
 
-You must output a single line of SorterDSL syntax.
-If A is much better: /{item1} 10:1 /{item2} {{ reason }}
-If A is better:     /{item1} > /{item2} {{ reason }}
-If equal:           /{item1} = /{item2} {{ reason }}
-If B is better:     /{item1} < /{item2} {{ reason }}
-If B is much better: /{item1} 1:10 /{item2} {{ reason }}
-
-Output ONLY the DSL line. Include a brief reason in curly braces."""
+    Yields:
+        Chunks of the AI response as they arrive
+    """
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": f"Here is the current conversation/file state:\n\n---\n{current_content}\n---\n\nThe user just said: {user_message}"
+        }
+    ]
 
     try:
-        with httpx.Client(timeout=30.0) as client:
-            resp = client.post(
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            async with client.stream(
+                "POST",
                 OPENROUTER_URL,
                 headers={
                     "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -40,84 +73,22 @@ Output ONLY the DSL line. Include a brief reason in curly braces."""
                 },
                 json={
                     "model": model,
-                    "messages": [{"role": "user", "content": prompt}]
+                    "messages": messages,
+                    "stream": True
                 }
-            )
-            resp.raise_for_status()
-            result = resp.json()
-            content = result['choices'][0]['message']['content'].strip()
-
-            # Validate it's actually valid DSL by parsing it
-            parser = EmailDSLParser()
-            doc = parser.parse_lines(content)
-
-            # Check that it's a vote between the expected items
-            # Document has statements list, filter for Vote objects
-            votes = [s for s in doc.statements if isinstance(s, Vote)]
-            if votes and len(votes) == 1:
-                vote = votes[0]
-                if {vote.item1, vote.item2} == {item1, item2}:
-                    return content
-
-            return None
-
+            ) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        data = line[6:]
+                        if data == "[DONE]":
+                            break
+                        try:
+                            json_data = json.loads(data)
+                            content = json_data['choices'][0]['delta'].get('content', '')
+                            if content:
+                                yield content
+                        except (json.JSONDecodeError, KeyError, IndexError):
+                            continue
     except Exception as e:
-        print(f"AI voting error: {e}")
-        return None
-
-
-def run_ai_sorting(list_id: str, num_votes: int = 5) -> list[dict]:
-    """Run AI sorting on a todo list.
-
-    Args:
-        list_id: The todo list identifier
-        num_votes: Number of pairwise comparisons to make
-
-    Returns:
-        List of vote results with details
-    """
-    state, meta = storage.get_todo_state(list_id)
-    if not state:
-        raise ValueError(f"Todo list {list_id} not found")
-
-    items = list(state.items.keys())
-    if len(items) < 2:
-        raise ValueError("Need at least 2 items to compare")
-
-    vote_results = []
-
-    for i in range(num_votes):
-        # Pick random pair
-        item1, item2 = random.sample(items, 2)
-
-        print(f"Vote {i+1}/{num_votes}: Comparing '{item1}' vs '{item2}'...")
-
-        # Get AI vote
-        vote_dsl = make_ai_vote(list_id, item1, item2, meta['criteria'], meta['model'])
-
-        if vote_dsl:
-            # Append to file
-            storage.append_vote(list_id, vote_dsl)
-
-            # Extract reason for logging
-            reason = ""
-            if "{" in vote_dsl and "}" in vote_dsl:
-                reason = vote_dsl.split("{")[1].split("}")[0].strip()
-
-            vote_results.append({
-                "item1": item1,
-                "item2": item2,
-                "dsl": vote_dsl,
-                "reason": reason
-            })
-            print(f"  → {reason}")
-        else:
-            print(f"  → Failed to get valid vote")
-            vote_results.append({
-                "item1": item1,
-                "item2": item2,
-                "dsl": None,
-                "reason": "Failed"
-            })
-
-    return vote_results
+        yield f"\n[Error contacting AI: {e}]\n"

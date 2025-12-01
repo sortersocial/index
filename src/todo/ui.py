@@ -253,3 +253,95 @@ def vote_update_fragment(item1, item2, reason):
             f"→ {reason}"
         ]
     ])
+
+
+def chat_view(list_id, history_html, rankings_html, meta):
+    """
+    Split view: Chat on left, Rankings on right.
+    """
+    return [
+        'div', {'class': 'chat-container', 'style': 'display: flex; gap: 20px; height: 85vh;'},
+
+        # Left Panel: Conversation
+        ['div', {'class': 'chat-panel', 'style': 'flex: 2; display: flex; flex-direction: column; border-right: 1px solid #ddd; padding-right: 20px;'},
+            ['h2', 'Chat with Sorter'],
+            ['div', {'id': 'chat-history', 'style': 'flex: 1; overflow-y: auto; padding-bottom: 20px; margin-bottom: 20px;'},
+                history_html
+            ],
+
+            # Input Area
+            ['div', {'class': 'input-area', 'style': 'margin-top: auto;'},
+                ['div', {
+                    'data-store': '{"message": ""}',
+                    'class': 'chat-input-wrapper'
+                },
+                    ['textarea', {
+                        'data-bind': 'message',
+                        'placeholder': 'Type a message (e.g., "Add milk and eggs", "I prefer eggs over milk")',
+                        'style': 'width: 100%; height: 80px; padding: 10px; font-family: inherit; border: 1px solid #ddd; border-radius: 4px;',
+                        'data-on:keydown': "evt.key === 'Enter' && !evt.shiftKey && (evt.preventDefault(), document.getElementById('send-btn').click())"
+                    }, ' '],
+                    ['div', {'style': 'display: flex; justify-content: space-between; margin-top: 8px;'},
+                        ['span', {'style': 'color: #999; font-size: 0.8em;'}, 'AI speaks SorterDSL'],
+                        ['button', {
+                            'id': 'send-btn',
+                            'class': 'button',
+                            'data-on:click': f"@post('/todo/{list_id}/chat'); $message=''",
+                            'data-attr-disabled': "!$message.trim()"
+                        }, 'Send']
+                    ]
+                ]
+            ]
+        ],
+
+        # Right Panel: Live State
+        ['div', {'class': 'state-panel', 'style': 'flex: 1; overflow-y: auto; background: #fafafa; padding: 15px; border-radius: 8px;'},
+            ['h3', {'style': 'margin-top: 0'}, 'Live State'],
+            ['div', {'id': 'rankings-view'},
+                rankings_html
+            ]
+        ]
+    ]
+
+
+def message_bubble(role, content_html):
+    """Render a single message bubble."""
+    bg_color = "#e3f2fd" if role == "user" else "#f5f5f5"
+    align = "flex-end" if role == "user" else "flex-start"
+
+    return hiccup_render([
+        'div', {
+            'class': f'message {role}',
+            'style': f'display: flex; flex-direction: column; align-items: {align}; margin-bottom: 15px;'
+        },
+        ['div', {
+            'style': f'background: {bg_color}; padding: 10px 15px; border-radius: 12px; max-width: 90%; word-wrap: break-word;'
+        },
+            content_html
+        ],
+        ['span', {'style': 'font-size: 0.7em; color: #999; margin-top: 4px;'}, role.title()]
+    ])
+
+
+def rankings_fragment(items, meta):
+    """Render just the rankings list (for live updates)."""
+    ranking_items = []
+
+    if not items:
+        ranking_items = [['p', {'class': 'no-items', 'style': 'color: #999; font-style: italic;'}, 'Start chatting to define items...']]
+    else:
+        for title, score, rank in items:
+            ranking_items.append([
+                'div', {'class': 'ranking-item', 'style': 'margin: 8px 0; padding: 10px; background: white; border-radius: 4px; display: flex; gap: 10px;'},
+                ['span', {'class': 'rank', 'style': 'font-weight: bold; color: #666; min-width: 25px;'}, f'#{rank}'],
+                ['span', {'class': 'title', 'style': 'flex: 1;'}, title.replace('-', ' ').title()],
+                ['span', {'class': 'score', 'style': 'color: #999; font-size: 0.9em;'}, f'{score:.2f}']
+            ])
+
+    return hiccup_render([
+        'div', {'id': 'rankings-view'},
+        ['div', {'style': 'margin-bottom: 10px; font-size: 0.9em; color: #666;'},
+            f"Context: {meta.get('criteria', 'general')}"
+        ],
+        ['div', {'id': 'rankings-list'}, *ranking_items]
+    ])

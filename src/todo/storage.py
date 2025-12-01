@@ -38,9 +38,10 @@ def create_todo_list(items: list[str], criteria: str, model: str) -> str:
             body_lines.append(f"/{item_name}")
 
     # Set the criteria as the attribute context
-    body_lines.append(f"\n:{criteria.replace(' ', '-')}\n")
+    body_lines.append("")  # Blank line before attribute
+    body_lines.append(f":{criteria.replace(' ', '-')}")
 
-    content = "\n".join(header) + "\n" + "\n".join(body_lines)
+    content = "\n".join(header) + "\n" + "\n".join(body_lines) + "\n"  # Ensure trailing newline
     filename.write_text(content, encoding="utf-8")
     return list_id
 
@@ -48,8 +49,20 @@ def create_todo_list(items: list[str], criteria: str, model: str) -> str:
 def append_vote(list_id: str, vote_dsl: str):
     """Appends a single AI vote to the file."""
     filename = TODO_DIR / f"{list_id}.sorter"
+    # Ensure vote is on a new line
     with open(filename, "a", encoding="utf-8") as f:
+        # Read last char to check if we need a newline
+        content = filename.read_text(encoding="utf-8")
+        if content and not content.endswith('\n'):
+            f.write('\n')
         f.write(f"{vote_dsl}\n")
+
+
+def append_raw(list_id: str, text: str):
+    """Appends raw text to the file (for chat messages)."""
+    filename = TODO_DIR / f"{list_id}.sorter"
+    with open(filename, "a", encoding="utf-8") as f:
+        f.write(text)
 
 
 def get_todo_state(list_id: str):
