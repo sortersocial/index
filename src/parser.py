@@ -88,7 +88,7 @@ comparison: NUMBER ":" NUMBER   -> ratio_comparison
           | "="                 -> simple_equal
 
 attribute_decl: attribute+
-attribute: ":" WORD
+attribute: ":" ATTR_NAME
 
 email_address: EMAIL
 
@@ -103,6 +103,7 @@ EMAIL: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/
 BLOCK_TOKEN: /__BLOCK_[a-f0-9]{8}__/
 
 ITEM_NAME: /[a-zA-Z0-9_]+([-][a-zA-Z0-9_]+)*/
+ATTR_NAME: /[a-zA-Z0-9_]+([-][a-zA-Z0-9_]+)*/
 NUMBER: /[0-9]+/
 WORD: /[a-zA-Z0-9_]+/
 

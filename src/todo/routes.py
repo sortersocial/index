@@ -70,18 +70,74 @@ async def create(request: Request):
     )
 
 
+def parse_conversation_history(raw_content: str):
+    """Parse conversation history from .sorter file into message bubbles.
+
+    Returns hiccup data structure with all message bubbles.
+    """
+    from src.render import render_email_body_hiccup
+    import re
+
+    # Split on message markers
+    messages = []
+    current_role = None
+    current_content = []
+
+    for line in raw_content.split('\n'):
+        if line.strip() == '---USER---':
+            # Save previous message if any
+            if current_role and current_content:
+                content_text = '\n'.join(current_content).strip()
+                if content_text:
+                    messages.append((current_role, content_text))
+            current_role = 'user'
+            current_content = []
+        elif line.strip() == '---AI---':
+            # Save previous message if any
+            if current_role and current_content:
+                content_text = '\n'.join(current_content).strip()
+                if content_text:
+                    messages.append((current_role, content_text))
+            current_role = 'ai'
+            current_content = []
+        elif line.strip() == '---':
+            # Skip the metadata separator
+            continue
+        elif current_role:
+            current_content.append(line)
+
+    # Save last message
+    if current_role and current_content:
+        content_text = '\n'.join(current_content).strip()
+        if content_text:
+            messages.append((current_role, content_text))
+
+    # Render each message as a bubble
+    bubbles = []
+    for role, content in messages:
+        if role == 'user':
+            # User messages are plain text
+            bubble = ui.message_bubble(role, content)
+        else:
+            # AI messages may contain DSL, render them
+            content_hiccup = render_email_body_hiccup(content)
+            bubble = ui.message_bubble(role, content_hiccup)
+        bubbles.append(bubble)
+
+    # Return as raw HTML fragments joined together
+    return ''.join(bubbles)
+
+
 @router.get("/{list_id}", response_class=HTMLResponse)
 async def view_chat(list_id: str):
     """View the chat interface."""
-    from src.render import render_email_body_hiccup
-
     state, meta = storage.get_todo_state(list_id)
     if not state:
         return HTMLResponse("Not found", status_code=404)
 
-    # Render conversation history as hiccup data
+    # Parse and render conversation history as message bubbles
     raw_content = storage.get_file_path(list_id).read_text(encoding="utf-8")
-    history_hiccup = render_email_body_hiccup(raw_content)
+    history_html = parse_conversation_history(raw_content)
 
     # Render rankings as hiccup data
     rankings = compute_rankings_from_state(
@@ -93,7 +149,7 @@ async def view_chat(list_id: str):
 
     rankings_hiccup = ui.rankings_fragment(display_items, meta)
 
-    return ui.layout(ui.chat_view(list_id, history_hiccup, rankings_hiccup, meta))
+    return ui.layout(ui.chat_view(list_id, history_html, rankings_hiccup, meta))
 
 
 @router.post("/{list_id}/chat")

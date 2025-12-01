@@ -1,5 +1,5 @@
 """UI components for AI todo sorter using python-hiccup."""
-from python_hiccup.html.core import render as hiccup_render
+from python_hiccup.html.core import render as hiccup_render, raw
 
 
 def layout(content):
@@ -102,7 +102,9 @@ def layout(content):
         ],
         ['body',
             ['div', {'class': 'back-link'},
-                ['a', {'href': '/'}, '← Back to Index']
+                ['a', {'href': '/'}, '← Back to Index'],
+                ['span', {'style': 'margin: 0 10px; color: #ccc;'}, '|'],
+                ['a', {'href': '/todo/'}, '← Back to Todo Index']
             ],
             content
         ]
@@ -152,6 +154,8 @@ def create_form(conversations=None):
                 ['label', 'Model:'],
                 ['select', {'data-bind': 'model'},
                     ['option', {'value': 'anthropic/claude-3.5-haiku'}, 'Claude 3.5 Haiku'],
+                    ['option', {'value': 'anthropic/claude-sonnet-4.5'}, 'Claude Sonnet 4.5'],
+                    ['option', {'value': 'anthropic/claude-opus-4.5'}, 'Claude Opus 4.5'],
                     ['option', {'value': 'openai/gpt-4o-mini'}, 'GPT-4o Mini'],
                     ['option', {'value': 'meta-llama/llama-3.1-70b-instruct'}, 'Llama 3.1 70B'],
                 ]
@@ -268,12 +272,12 @@ def vote_update_fragment(item1, item2, reason):
     ])
 
 
-def chat_view(list_id, history_hiccup, rankings_hiccup, meta):
+def chat_view(list_id, history_html, rankings_hiccup, meta):
     """
     Split view: Chat on left, Rankings on right.
 
     Args:
-        history_hiccup: Hiccup data structure (not HTML string)
+        history_html: HTML string of message bubbles
         rankings_hiccup: Hiccup data structure (not HTML string)
     """
     return [
@@ -281,9 +285,8 @@ def chat_view(list_id, history_hiccup, rankings_hiccup, meta):
 
         # Left Panel: Conversation
         ['div', {'class': 'chat-panel', 'style': 'flex: 2; display: flex; flex-direction: column; border-right: 1px solid #ddd; padding-right: 20px;'},
-            ['h2', 'Chat with Sorter'],
             ['div', {'id': 'chat-history', 'style': 'flex: 1; overflow-y: auto; padding-bottom: 20px; margin-bottom: 20px;'},
-                history_hiccup
+                raw(history_html)
             ],
 
             # Input Area
@@ -313,7 +316,6 @@ def chat_view(list_id, history_hiccup, rankings_hiccup, meta):
 
         # Right Panel: Live State
         ['div', {'class': 'state-panel', 'style': 'flex: 1; overflow-y: auto; background: #fafafa; padding: 15px; border-radius: 8px;'},
-            ['h3', {'style': 'margin-top: 0'}, 'Live State'],
             ['div', {'id': 'rankings-view'},
                 rankings_hiccup
             ]
