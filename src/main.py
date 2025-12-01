@@ -18,6 +18,7 @@ from src.parser import EmailDSLParser, Hashtag, Document
 from src.reducer import Reducer, ParseError
 from src.rank import compute_rankings_from_state
 from src.render import render_email_body
+from src.todo.routes import router as todo_router
 from lark.exceptions import LarkError
 
 # Configure logging
@@ -118,6 +119,9 @@ templates = Jinja2Templates(directory="src/templates")
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="src/static"), name="static")
+
+# Include todo router
+app.include_router(todo_router)
 
 # Add custom filters to Jinja2
 templates.env.filters["relative_time"] = format_relative_time

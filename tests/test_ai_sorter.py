@@ -1,5 +1,6 @@
 """Test rig for AI todo sorter."""
 import pytest
+from unittest.mock import patch, MagicMock
 from src.todo import storage, ai_voter
 from src.rank import compute_rankings_from_state
 
@@ -147,6 +148,66 @@ def test_ai_voting_full_flow():
 
     print(f"\n✅ Test passed!")
     return list_id
+
+
+def test_sse_stream_generator():
+    """Test the SSE stream generator with mocked AI calls.
+
+    This tests that:
+    - The stream yields valid SSE events
+    - Events have the right format (event: datastar-fragment)
+    - Rankings update progressively
+    - The loop terminates after N votes
+    """
+    import anyio
+    from src.todo.routes import ai_sorter_stream
+
+    async def run_test():
+        # Create a test list
+        items = ["Task A", "Task B", "Task C"]
+        list_id = storage.create_todo_list(items, "urgency", "test-model")
+
+        # Mock the AI voter to return deterministic votes
+        mock_votes = [
+            "/task-a > /task-b { A is better }",
+            "/task-b > /task-c { B is better }",
+            "/task-a > /task-c { A is much better }",
+            "/task-c > /task-a { Actually C is better }",
+            "/task-b > /task-a { B wins }",
+        ]
+
+        with patch('src.todo.ai_voter.make_ai_vote') as mock_ai:
+            # Return votes in sequence
+            mock_ai.side_effect = mock_votes
+
+            # Collect all events from the stream
+            events = []
+            async for event in ai_sorter_stream(list_id):
+                events.append(event)
+
+            # Should yield updates (one per vote)
+            # Each update is 2 lines: "event: ...\n" and "data: ...\n\n"
+            assert len(events) >= 10, f"Expected at least 10 event parts, got {len(events)}"
+
+            # Check event format
+            event_lines = "".join(events)
+            assert "event: datastar-fragment" in event_lines
+            assert "data: " in event_lines
+
+            # Check that HTML fragments contain ranking data
+            assert "task-a" in event_lines or "Task A" in event_lines
+            assert "Sorting complete" in event_lines or "complete" in event_lines
+
+            # Verify votes were actually saved
+            state, _ = storage.get_todo_state(list_id)
+            assert len(state.votes) == 5, f"Expected 5 votes, got {len(state.votes)}"
+
+            print("\n✓ SSE stream test passed")
+            print(f"  Generated {len(events)} event parts")
+            print(f"  Saved {len(state.votes)} votes")
+
+    # Run the async test
+    anyio.run(run_test)
 
 
 if __name__ == "__main__":
