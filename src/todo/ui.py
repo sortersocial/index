@@ -352,7 +352,7 @@ def message_bubble(role, content_hiccup, bubble_id=None):
     ])
 
 
-def rankings_fragment(items, meta):
+def rankings_fragment(items, meta, available_attributes=None, current_attribute=None):
     """Render just the rankings list (returns hiccup data structure)."""
     ranking_items = []
 
@@ -367,10 +367,35 @@ def rankings_fragment(items, meta):
                 ['span', {'class': 'score', 'style': 'color: #999; font-size: 0.9em;'}, f'{score:.2f}']
             ])
 
+    # Build attribute selector if multiple attributes available
+    attribute_selector = []
+    if available_attributes and len(available_attributes) > 1:
+        buttons = []
+        for attr, count in available_attributes:
+            is_active = attr == current_attribute
+            button_style = 'padding: 4px 8px; margin: 2px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-size: 0.85em;'
+            if is_active:
+                button_style += ' background: #4a90e2; color: white; border-color: #4a90e2;'
+            else:
+                button_style += ' background: white; color: #333;'
+
+            buttons.append([
+                'a', {
+                    'href': f'?attribute={attr}',
+                    'style': button_style + ' text-decoration: none; display: inline-block;'
+                },
+                f':{attr} ({count})'
+            ])
+
+        attribute_selector = [
+            ['div', {'style': 'margin-bottom: 10px; font-size: 0.85em;'},
+                ['span', {'style': 'color: #666; margin-right: 8px;'}, 'Rank by:'],
+                *buttons
+            ]
+        ]
+
     return [
         'div', {'id': 'rankings-view'},
-        ['div', {'style': 'margin-bottom: 10px; font-size: 0.9em; color: #666;'},
-            f"Context: {meta.get('criteria', 'general')}"
-        ],
+        *attribute_selector,
         ['div', {'id': 'rankings-list'}, *ranking_items]
     ]

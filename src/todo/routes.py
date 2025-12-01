@@ -129,8 +129,10 @@ def parse_conversation_history(raw_content: str):
 
 
 @router.get("/{list_id}", response_class=HTMLResponse)
-async def view_chat(list_id: str):
+async def view_chat(list_id: str, attribute: str = None):
     """View the chat interface."""
+    from collections import Counter
+
     state, meta = storage.get_todo_state(list_id)
     if not state:
         return HTMLResponse("Not found", status_code=404)
@@ -139,15 +141,40 @@ async def view_chat(list_id: str):
     raw_content = storage.get_file_path(list_id).read_text(encoding="utf-8")
     history_html = parse_conversation_history(raw_content)
 
+    # Collect all available attributes from votes
+    attribute_counts = Counter()
+    for vote in state.votes:
+        if vote.attribute:
+            attribute_counts[vote.attribute] += 1
+
+    available_attributes = sorted(attribute_counts.items(), key=lambda x: x[1], reverse=True)
+
+    # Use requested attribute, or default to most common, or fallback to meta criteria
+    if attribute is None and available_attributes:
+        attribute = available_attributes[0][0]
+    elif attribute is None:
+        attribute = meta['criteria'].replace(" ", "-")
+
     # Render rankings as hiccup data
     rankings = compute_rankings_from_state(
         state,
         f"todo-{list_id}",
-        meta['criteria'].replace(" ", "-")
+        attribute
     )
-    display_items = [(title, score, rank) for title, score, rank, _ in rankings]
 
-    rankings_hiccup = ui.rankings_fragment(display_items, meta)
+    # Group by component and only show connected components (size > 1)
+    from collections import defaultdict
+    components_dict = defaultdict(list)
+    for title, score, rank, comp_id in rankings:
+        components_dict[comp_id].append((title, score, rank))
+
+    # Filter to only components with multiple items (strongly connected)
+    display_items = []
+    for comp_id, items in sorted(components_dict.items()):
+        if len(items) > 1:
+            display_items.extend(items)
+
+    rankings_hiccup = ui.rankings_fragment(display_items, meta, available_attributes, attribute)
 
     return ui.layout(ui.chat_view(list_id, history_html, rankings_hiccup, meta))
 
@@ -229,15 +256,42 @@ async def chat_interaction(request: Request, list_id: str):
 
         # Update rankings (the side effect!)
         # Re-parse the file now that AI wrote DSL
+        from collections import Counter
         new_state, _ = storage.get_todo_state(list_id)
+
+        # Collect available attributes from the new state
+        attribute_counts = Counter()
+        for vote in new_state.votes:
+            if vote.attribute:
+                attribute_counts[vote.attribute] += 1
+
+        available_attributes = sorted(attribute_counts.items(), key=lambda x: x[1], reverse=True)
+
+        # Use most common attribute or fallback
+        if available_attributes:
+            current_attribute = available_attributes[0][0]
+        else:
+            current_attribute = meta['criteria'].replace(" ", "-")
+
         new_rankings = compute_rankings_from_state(
             new_state,
             f"todo-{list_id}",
-            meta['criteria'].replace(" ", "-")
+            current_attribute
         )
-        display_items = [(title, score, rank) for title, score, rank, _ in new_rankings]
 
-        rankings_hiccup = ui.rankings_fragment(display_items, meta)
+        # Group by component and only show connected components (size > 1)
+        from collections import defaultdict
+        components_dict = defaultdict(list)
+        for title, score, rank, comp_id in new_rankings:
+            components_dict[comp_id].append((title, score, rank))
+
+        # Filter to only components with multiple items (strongly connected)
+        display_items = []
+        for comp_id, items in sorted(components_dict.items()):
+            if len(items) > 1:
+                display_items.extend(items)
+
+        rankings_hiccup = ui.rankings_fragment(display_items, meta, available_attributes, current_attribute)
         rankings_html = hiccup_render(rankings_hiccup)
 
         yield sse.patch_elements(
