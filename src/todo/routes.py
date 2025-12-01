@@ -160,12 +160,12 @@ async def chat_interaction(request: Request, list_id: str):
             # Render current accumulation as hiccup data
             rendered_hiccup = render_email_body_hiccup(ai_accumulated)
 
-            bubble_html = ui.message_bubble("ai", rendered_hiccup)
+            bubble_html = ui.message_bubble("ai", rendered_hiccup, bubble_id="ai-typing")
 
             yield sse.patch_elements(
                 elements=bubble_html,
                 selector="#ai-typing",
-                mode="outer"  # Replace the thinking indicator
+                mode="outer"  # Replace the whole element
             )
 
         # Commit AI response to file

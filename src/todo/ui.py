@@ -321,21 +321,26 @@ def chat_view(list_id, history_hiccup, rankings_hiccup, meta):
     ]
 
 
-def message_bubble(role, content_hiccup):
+def message_bubble(role, content_hiccup, bubble_id=None):
     """Render a single message bubble.
 
     Args:
         role: "user" or "ai"
         content_hiccup: Hiccup data structure (not HTML string)
+        bubble_id: Optional ID for the bubble div
     """
     bg_color = "#e3f2fd" if role == "user" else "#f5f5f5"
     align = "flex-end" if role == "user" else "flex-start"
 
+    attrs = {
+        'class': f'message {role}',
+        'style': f'display: flex; flex-direction: column; align-items: {align}; margin-bottom: 15px;'
+    }
+    if bubble_id:
+        attrs['id'] = bubble_id
+
     return hiccup_render([
-        'div', {
-            'class': f'message {role}',
-            'style': f'display: flex; flex-direction: column; align-items: {align}; margin-bottom: 15px;'
-        },
+        'div', attrs,
         ['div', {
             'style': f'background: {bg_color}; padding: 10px 15px; border-radius: 12px; max-width: 90%; word-wrap: break-word;'
         },
